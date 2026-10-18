@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from lam.domain.events.models import LearningEvent
 from lam.domain.learner_state.models import LearnerConceptState
+from lam.domain.mastery.bkt import BKTEngine, compute_operational_uncertainty
 from lam.infrastructure.database.models import LearnerStateModel
 
 
@@ -86,11 +87,12 @@ class StateRepository:
             event.hints_used is not None and event.hints_used > 0
         )
 
+        bkt = BKTEngine()
+
         if not model:
             # Initial state values
             initial_indep_mastery = 0.0
             initial_assisted_perf = 0.0
-            initial_uncertainty = 1.0
             consec_success = 0
             indep_count = 0
             assisted_count = 0
@@ -100,13 +102,18 @@ class StateRepository:
                 if event.correctness is True:
                     initial_assisted_perf = 0.1
             else:
-                indep_count = 1
-                if event.correctness is True:
-                    consec_success = 1
-                    initial_indep_mastery = 0.2
-                    initial_uncertainty = 0.85
-                elif event.correctness is False:
-                    initial_uncertainty = 0.95
+                if event.correctness is not None:
+                    indep_count = 1
+                    if event.correctness is True:
+                        consec_success = 1
+                    bkt_res = bkt.update(
+                        prior=bkt.params.p_l0,
+                        correctness=event.correctness,
+                        is_assisted=False,
+                    )
+                    initial_indep_mastery = bkt_res.posterior_mastery
+
+            initial_uncertainty = compute_operational_uncertainty(indep_count)
 
             model = LearnerStateModel(
                 tenant_id=tenant_id,
@@ -150,15 +157,27 @@ class StateRepository:
             if event.correctness is True:
                 model.assisted_performance = min(1.0, model.assisted_performance + 0.1)
         else:
-            model.independent_attempts_count += 1
-            if event.correctness is True:
-                model.consecutive_independent_successes += 1
-                model.independent_mastery = min(1.0, model.independent_mastery + 0.2)
-                model.concept_mastery = model.independent_mastery
-                model.uncertainty = max(0.1, model.uncertainty - 0.15)
-            elif event.correctness is False:
-                model.consecutive_independent_successes = 0
-                model.uncertainty = max(0.1, model.uncertainty - 0.05)
+            if event.correctness is not None:
+                model.independent_attempts_count += 1
+                if event.correctness is True:
+                    model.consecutive_independent_successes += 1
+                else:
+                    model.consecutive_independent_successes = 0
+
+                prior = (
+                    model.independent_mastery
+                    if model.independent_attempts_count > 1
+                    else bkt.params.p_l0
+                )
+                bkt_res = bkt.update(
+                    prior=prior,
+                    correctness=event.correctness,
+                    is_assisted=False,
+                )
+                model.independent_mastery = bkt_res.posterior_mastery
+                model.concept_mastery = bkt_res.posterior_mastery
+
+        model.uncertainty = compute_operational_uncertainty(model.independent_attempts_count)
 
         await self.session.flush()
         return LearnerConceptState.model_validate(model)

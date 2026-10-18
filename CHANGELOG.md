@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.2.0] - 2026-10-18 (BKT Domain Engine & Production Fail-Closed Configuration)
+
+### Added
+- **Pure Python BKT Engine (`src/lam/domain/mastery/bkt.py`):**
+  - Implemented Corbett & Anderson (1995) two-step Bayesian Knowledge Tracing engine.
+  - Zero framework/database dependencies; fully typed dataclasses for `BKTParameters` and `BKTTransitionResult`.
+  - Non-degeneracy validation enforcing positive item discrimination ($P(G) < 0.50$, $P(S) < 0.50$, $P(G) + P(S) < 1.0$).
+  - Negative evidence gating: assisted attempts and missing correctness signals bypass BKT updates.
+  - Unit tests (`tests/unit/test_bkt.py`) verifying all four D-02 published deterministic test vectors.
+- **Operative Epistemic Uncertainty Calculator (`bkt.py::compute_operational_uncertainty`):**
+  - Formally implemented $U(n) = \min(1.0, \frac{1}{\sqrt{n_{\text{indep}} + 1}})$.
+  - Corrected arithmetic: exactly $n_{\text{indep}} \ge 44$ observations are required for $U \le 0.15$.
+- **Fail-Closed Production JWT Configuration (`src/lam/infrastructure/config.py`):**
+  - Enforced that production environments reject startup with missing, empty, default, or weak (< 32 chars) JWT secrets.
+  - Added unit test suite `tests/unit/test_config_security.py` (5/5 passed).
+- **End-to-End Trajectory Ingestion Test (`tests/integration/test_event_ingestion.py`):**
+  - Multi-step integration test verifying unassisted correct/incorrect attempts produce exact BKT trajectory.
+
+### Changed
+- **Learner State Transition (`src/lam/infrastructure/repositories/state_repository.py`):**
+  - Replaced interim fixed-step `+0.2` increments with the pure domain `BKTEngine`.
+  - Persisted BKT independent mastery and operational uncertainty on unassisted attempts.
+
+---
+
 ## [0.1.2] - 2026-10-18 (Authentication Security Hardening & Concurrency Safety)
 
 ### Added

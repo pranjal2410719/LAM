@@ -29,12 +29,8 @@ class EventIngestionService:
         - Full rollback on failure.
         - Strict idempotency against duplicate event submissions.
         - Concurrency safety with row-level locks on state updates.
-
-        Note on Milestone M0/M1 State Updates:
-        The current fixed-step (+0.2 / +0.1) increments are interim M0 scaffolding placeholders
-        to establish ledger/state mechanics. They MUST NOT be exposed to downstream clients as
-        calibrated mastery probabilities until replaced by the validated Bayesian Knowledge
-        Tracing (BKT) domain engine in Milestone M1.
+        - Deterministic BKT mastery transitions for eligible unassisted observations.
+        - Assisted attempts and missing signals strictly bypass BKT transitions.
         """
         tenant_id = sec.tenant_id
 

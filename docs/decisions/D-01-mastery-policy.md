@@ -1,6 +1,6 @@
 # Decision Record: D-01 — Mastery Policy & Confirmation Criteria
 
-**Status:** `PROPOSED` (Awaiting Formal Technical Review & Sign-Off)  
+**Status:** `PROPOSED` (Awaiting Formal Pedagogical & Technical Sign-Off)  
 **Date:** 2026-10-18  
 **Owner:** Technical Owner & Pedagogy Lead  
 **Applies to:** Milestone M1 & M2 (Mastery Estimation, Verification, and Next-Action Sequencing)  
@@ -31,35 +31,40 @@ Specific challenges:
 
 ### 3.1 Separate Dimensions
 Learner state tracks independent performance separately from assisted performance:
-* **`independent_mastery`**: Computed strictly from unassisted attempts (`assistance_level == 0`, `hints_used == 0`) and verified independent assessments.
+* **`independent_mastery`**: Computed strictly from unassisted attempts (`assistance_level == 0`, `hints_used == 0`) and verified independent assessments via the BKT domain engine.
 * **`assisted_performance`**: Success rate with scaffolding (Levels 1 to 8). An assisted success never advances `independent_mastery`.
 
 ### 3.2 Durable Mastery Confirmation Criteria
 A concept is transitioned to `CONFIRMED_MASTERY` status if and only if all of the following conditions are met:
 1. **Model Estimate:** Calculated independent mastery point estimate $P(L_t) \ge 0.90$.
-2. **Uncertainty Bound:** Explicit uncertainty criterion satisfied (see Section 3.3).
+2. **Operational Uncertainty Bound:** Operative evidence sufficiency heuristic $U(n_{\text{indep}}) \le 0.15$ (requiring $n_{\text{indep}} \ge 44$, see Section 3.3).
 3. **Independent Evidence Count:** At least $3$ independent, verified successes.
 4. **Session Separation:** Evidence spans at least $2$ distinct sessions separated by $\ge 4$ hours.
 5. **Item Difficulty:** At least one independent success on an item with difficulty $\ge 0.60$.
 6. **No Active Misconceptions:** Zero confirmed misconception hypotheses on the concept.
 7. **Delayed Retention Check:** A scheduled spaced review (at least 1 day after learning) is passed unassisted.
 
-### 3.3 Mathematical Clarification: Uncertainty vs. Point-Estimate BKT
+### 3.3 Operative Uncertainty Metric for Milestone M1
 > [!IMPORTANT]
 > **Statistical Distinction:** Standard Bayesian Knowledge Tracing (BKT) produces a scalar point estimate $P(L_t = 1 \mid \text{Obs}_{1:t})$ representing the probability that the latent Bernoulli mastery state is 1. Standard BKT does **not** natively produce a posterior parameter distribution or a continuous Bayesian credible interval.
 
-For Milestone M1 implementation, uncertainty must be clearly defined rather than represented as an uncalibrated credible interval. The candidate options under review are:
+For Milestone M1, the single operative formula for uncertainty is defined as an evidence-sufficiency heuristic:
 
-1. **Option 1 (Bernoulli Standard Error):**
-   Treat $L_t \sim \text{Bernoulli}(p)$ where $p = P(L_t=1)$. The estimation variance is $\sigma^2 = p(1-p)$. When $p \ge 0.90$, $\sigma = \sqrt{0.90 \times 0.10} = 0.30$. Requiring $\sigma \le 0.15$ mathematically requires $p \ge 0.976$ (or $p \le 0.024$).
-2. **Option 2 (Observation-Count Epistemic Uncertainty — Recommended for M1):**
-   Decouple the point probability from parameter variance. Define operational uncertainty as an evidence decay function over unassisted observations:
-   $$U(n) = \frac{1}{\sqrt{n_{\text{indep}} + 1}}$$
-   Where $n_{\text{indep}}$ is the count of unassisted observations. Here, $U \le 0.15$ requires $n_{\text{indep}} \ge 43$ items, or using an exponential decay schedule $U(n) = \max(0.10, e^{-0.5 \cdot n_{\text{indep}}})$.
-3. **Option 3 (Full Beta-BKT Parameter Posterior — Deferred to M3):**
-   Maintain a full Beta distribution over BKT parameters to generate statistically valid parameter credible intervals.
+$$U(n_{\text{indep}}) = \min\left(1.0, \frac{1}{\sqrt{n_{\text{indep}} + 1}}\right)$$
 
-**Operational Rule for M1:** The `uncertainty` field in `learner_states` is an operational epistemic confidence heuristic, **not** an empirical Bayesian parameter credible interval. The confirmation threshold in Rule 3.2(2) shall be evaluated as $U \le 0.15$ under the approved operational decay function.
+Where $n_{\text{indep}}$ is the total count of unassisted observations for the concept.
+
+#### Threshold Derivation:
+To satisfy the confirmation threshold $U(n_{\text{indep}}) \le 0.15$:
+$$\frac{1}{\sqrt{n_{\text{indep}} + 1}} \le 0.15 \iff n_{\text{indep}} + 1 \ge \frac{1}{0.15^2} = \frac{1}{0.0225} \approx 44.44$$
+
+Because $n_{\text{indep}}$ is an integer count of observations:
+- At $n_{\text{indep}} = 43$: $U(43) = \frac{1}{\sqrt{44}} \approx 0.15076 > 0.15$ (FAILS).
+- At $n_{\text{indep}} = 44$: $U(44) = \frac{1}{\sqrt{45}} \approx 0.14907 \le 0.15$ (PASSES).
+
+Therefore, exactly **44 independent observations** are required to satisfy the $0.15$ uncertainty bound.
+
+**Important Note on Terminology:** This metric is strictly an operational evidence-sufficiency heuristic. It must not be presented to educators or downstream systems as an empirically calibrated Bayesian credible interval. True parameter posterior credible intervals are deferred to Milestone M3 (Beta-BKT).
 
 ---
 

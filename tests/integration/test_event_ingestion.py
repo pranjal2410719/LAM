@@ -109,3 +109,107 @@ async def test_assisted_success_does_not_advance_independent_mastery(
     assert state["independent_attempts_count"] == 0
     assert state["assisted_performance"] > 0.0
     assert state["independent_mastery"] == 0.0  # Must remain 0!
+
+
+@pytest.mark.asyncio
+async def test_end_to_end_bkt_trajectory_ingestion(async_client: AsyncClient) -> None:
+    """Verifies that ingestion updates learner state matching Decision D-02 BKT vectors."""
+    headers = auth_headers(tenant_id="tenant_bkt_e2e", client_id="client_bkt")
+
+    # Step 1: Correct attempt (1) -> expected mastery ≈ 0.4667
+    p1 = {
+        "event_id": "bkt_evt_1",
+        "student_id": "student_bkt_1",
+        "session_id": "sess_1",
+        "concept_ids": ["math.trig"],
+        "item_id": "item_1",
+        "timestamp": "2026-10-18T10:00:00Z",
+        "event_type": "attempt",
+        "correctness": True,
+        "assistance_level": 0,
+    }
+    r1 = await async_client.post("/v1/events", json=p1, headers=headers)
+    assert r1.status_code == 200
+
+    s1 = await async_client.get(
+        "/v1/learners/student_bkt_1/concepts/math.trig/state",
+        headers=headers,
+    )
+    data1 = s1.json()
+    assert pytest.approx(data1["independent_mastery"], abs=1e-3) == 0.467
+    assert data1["independent_attempts_count"] == 1
+    assert data1["consecutive_independent_successes"] == 1
+
+    # Step 2: Incorrect attempt (0) -> expected mastery ≈ 0.2789
+    p2 = {
+        "event_id": "bkt_evt_2",
+        "student_id": "student_bkt_1",
+        "session_id": "sess_1",
+        "concept_ids": ["math.trig"],
+        "item_id": "item_2",
+        "timestamp": "2026-10-18T10:05:00Z",
+        "event_type": "attempt",
+        "correctness": False,
+        "assistance_level": 0,
+    }
+    r2 = await async_client.post("/v1/events", json=p2, headers=headers)
+    assert r2.status_code == 200
+
+    s2 = await async_client.get(
+        "/v1/learners/student_bkt_1/concepts/math.trig/state",
+        headers=headers,
+    )
+    data2 = s2.json()
+    assert pytest.approx(data2["independent_mastery"], abs=1e-3) == 0.279
+    assert data2["independent_attempts_count"] == 2
+    assert data2["consecutive_independent_successes"] == 0
+
+    # Step 3: Correct attempt (1) -> expected mastery ≈ 0.7081
+    p3 = {
+        "event_id": "bkt_evt_3",
+        "student_id": "student_bkt_1",
+        "session_id": "sess_1",
+        "concept_ids": ["math.trig"],
+        "item_id": "item_3",
+        "timestamp": "2026-10-18T10:10:00Z",
+        "event_type": "attempt",
+        "correctness": True,
+        "assistance_level": 0,
+    }
+    r3 = await async_client.post("/v1/events", json=p3, headers=headers)
+    assert r3.status_code == 200
+
+    s3 = await async_client.get(
+        "/v1/learners/student_bkt_1/concepts/math.trig/state",
+        headers=headers,
+    )
+    data3 = s3.json()
+    assert pytest.approx(data3["independent_mastery"], abs=1e-3) == 0.708
+    assert data3["independent_attempts_count"] == 3
+    assert data3["consecutive_independent_successes"] == 1
+
+    # Step 4: Assisted attempt (hint used) -> independent_mastery stays exactly 0.708
+    p4 = {
+        "event_id": "bkt_evt_4",
+        "student_id": "student_bkt_1",
+        "session_id": "sess_1",
+        "concept_ids": ["math.trig"],
+        "item_id": "item_4",
+        "timestamp": "2026-10-18T10:15:00Z",
+        "event_type": "attempt",
+        "correctness": True,
+        "assistance_level": 2,
+        "hints_used": 1,
+    }
+    r4 = await async_client.post("/v1/events", json=p4, headers=headers)
+    assert r4.status_code == 200
+
+    s4 = await async_client.get(
+        "/v1/learners/student_bkt_1/concepts/math.trig/state",
+        headers=headers,
+    )
+    data4 = s4.json()
+    # Must remain unchanged from step 3!
+    assert pytest.approx(data4["independent_mastery"], abs=1e-3) == 0.708
+    assert data4["assisted_attempts_count"] == 1
+    assert data4["independent_attempts_count"] == 3

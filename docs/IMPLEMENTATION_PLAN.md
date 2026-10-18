@@ -25,9 +25,9 @@
 
 | Task ID | Task Description | Dependencies | Acceptance Criteria | Status |
 |:---|:---|:---:|:---|:---:|
-| `M1-01` | **Formalize Decisions D-01 & D-02** | None | Decision records for Mastery Policy (`D-01`) and BKT parameters (`D-02`) written with exact equations, point-estimate vs epistemic uncertainty clarification, and deterministic test vectors. | `COMPLETED` (Drafted as `PROPOSED`, awaiting sign-off) |
-| `M1-02` | **BKT Knowledge Tracing Engine** | `M1-01` (Sign-off) | Pure Python implementation of Standard BKT equations with candidate parameters $P(L_0), P(T), P(G), P(S)$. Deterministic state updates. Zero database/web framework dependencies. | `BLOCKED` (Awaiting D-01/D-02 Approval) |
-| `M1-03` | **Assisted vs. Unassisted Segregation** | `M1-02` | Unassisted attempts update BKT independent mastery; assisted attempts update assisted performance only. Replace placeholder increments in `ingestion_service.py`. | `NOT_STARTED` |
+| `M1-01` | **Formalize Decisions D-01 & D-02** | None | Decision records for Mastery Policy (`D-01`, with $n \ge 44$ uncertainty arithmetic fix) and BKT parameters (`D-02`) written with exact equations and deterministic test vectors. | `COMPLETED` (Drafted as `PROPOSED`, awaiting sign-off) |
+| `M1-02` | **BKT Knowledge Tracing Engine** | `M1-01` | Pure Python implementation of Corbett & Anderson BKT equations (`src/lam/domain/mastery/bkt.py`). Deterministic reproduction of all D-02 test vectors. Zero database/web framework dependencies. | `COMPLETED` (`tests/unit/test_bkt.py` 7/7 passed) |
+| `M1-03` | **Assisted vs. Unassisted Segregation in Ingestion** | `M1-02` | Unassisted attempts update BKT independent mastery; assisted attempts update assisted performance only. Placeholder increments removed from state transitions. | `COMPLETED` (`tests/integration/test_event_ingestion.py` passed) |
 | `M1-04` | **Misconception Diagnosis Engine** | `D-04` | Competing hypothesis tracking across standard taxonomy (`conceptual`, `procedural`, `guessing`, etc.) with confidence. | `NOT_STARTED` |
 | `M1-05` | **Rule-Based Decision Engine (Next Action)** | `D-05`, `D-06` | Deterministic priority ranking: Safety $\rightarrow$ Prerequisite $\rightarrow$ Misconception $\rightarrow$ Practice. Endpoint `POST /v1/recommendations`. | `NOT_STARTED` |
 | `M1-06` | **M1 Reproducibility & End-to-End Test Gate** | `M1-02`–`M1-05` | Fixed replay scenarios produce identical results; manual test records logged. | `NOT_STARTED` |

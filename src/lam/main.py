@@ -9,15 +9,17 @@ from fastapi.responses import JSONResponse
 
 from lam.api.routes import events, health, state
 from lam.api.schemas.errors import ErrorPayload, ErrorResponse
+from lam.infrastructure.config import settings
 from lam.infrastructure.database.session import verify_db_connection
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    """Application startup hooks: verify database connectivity.
+    """Application startup hooks: validate security configuration and verify database connectivity.
 
     Schema must be managed by Alembic migrations prior to service boot.
     """
+    settings.validate_production_security()
     await verify_db_connection()
     yield
 

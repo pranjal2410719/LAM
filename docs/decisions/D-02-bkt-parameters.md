@@ -1,6 +1,6 @@
 # Decision Record: D-02 — Bayesian Knowledge Tracing (BKT) Baseline Parameterization
 
-**Status:** `PROPOSED` (Awaiting Formal Technical Review & Sign-Off)  
+**Status:** `PROPOSED` (Awaiting Formal Pedagogical & Technical Sign-Off)  
 **Date:** 2026-10-18  
 **Owner:** Technical Owner & ML Lead  
 **Applies to:** Milestone M1 (Domain Mastery Engine: `src/lam/domain/mastery/`)  
@@ -29,20 +29,22 @@ For any concept, knowledge state is represented as a point probability $P(L_t) \
 $$P(L_{t+1}) = P(L_t \mid Obs_t) + (1 - P(L_t \mid Obs_t)) \cdot P(T)$$
 
 ### 2.1 Point-Estimate Semantics & Epistemic Uncertainty
-Note that standard BKT computes a scalar point estimate $P(L_t = 1)$. It does **not** estimate parameter uncertainty or output a Bayesian credible interval. As established in Decision Record [D-01](D-01-mastery-policy.md#33-mathematical-clarification-uncertainty-vs-point-estimate-bkt), the uncertainty metric in Milestone M1 is treated as an operational epistemic confidence bound based on unassisted observation count, pending full posterior inference in Milestone M3.
+Note that standard BKT computes a scalar point estimate $P(L_t = 1)$. It does **not** estimate parameter uncertainty or output a Bayesian credible interval. As established in Decision Record [D-01](D-01-mastery-policy.md#33-operative-uncertainty-metric-for-milestone-m1), the uncertainty metric in Milestone M1 is treated as an operational epistemic evidence bound based on unassisted observation count, pending full posterior inference in Milestone M3.
 
 ---
 
 ## 3. Candidate Baseline Parameters (Proposed Default)
 
-| Parameter | Symbol | Meaning | Candidate Baseline Value | Allowable Range |
-|:---|:---:|:---|:---:|:---:|
-| **Initial Knowledge** | $P(L_0)$ | Prior probability learner knows concept before first item | **0.10** | $[0.01, 0.40]$ |
-| **Transit Probability** | $P(T)$ | Probability of acquiring knowledge during an attempt | **0.20** | $[0.05, 0.40]$ |
-| **Guess Probability** | $P(G)$ | Probability of answering correctly despite not knowing | **0.20** | $[0.05, 0.35]$ |
-| **Slip Probability** | $P(S)$ | Probability of making an error despite knowing | **0.10** | $[0.01, 0.20]$ |
+| Parameter | Symbol | Meaning | Candidate Baseline Value | Allowable Range | Mathematical Constraint |
+|:---|:---:|:---|:---:|:---:|:---|
+| **Initial Knowledge** | $P(L_0)$ | Prior probability learner knows concept before first item | **0.10** | $[0.01, 0.40]$ | $0 < P(L_0) < 1.0$ |
+| **Transit Probability** | $P(T)$ | Probability of acquiring knowledge during an attempt | **0.20** | $[0.05, 0.40]$ | $0 \le P(T) < 1.0$ |
+| **Guess Probability** | $P(G)$ | Probability of answering correctly despite not knowing | **0.20** | $[0.05, 0.35]$ | $0 \le P(G) < 0.50$ |
+| **Slip Probability** | $P(S)$ | Probability of making an error despite knowing | **0.10** | $[0.01, 0.20]$ | $0 \le P(S) < 0.50$ |
 
 > [!IMPORTANT]
+> **Non-Degeneracy Condition:** $P(G) + P(S) < 1.0$ is strictly required to guarantee positive item discrimination (i.e. the probability of answering correctly given mastery must exceed the probability of answering correctly without mastery).
+>
 > **Candidate Status:** These values are starting engineering baselines derived from standard educational data mining literature. They are **not** yet validated against Qrie student production data. They must remain marked `PROPOSED` until empirically evaluated on baseline datasets in Milestone M3.
 
 ---
@@ -52,7 +54,7 @@ Note that standard BKT computes a scalar point estimate $P(L_t = 1)$. It does **
 1. **Unassisted attempts only:** BKT probability updates apply exclusively to unassisted observations (`assistance_level == 0` and `hints_used == 0`).
 2. **Assisted attempts excluded:** Attempts with scaffolding (Levels 1 to 8) update `assisted_performance` counters only and bypass the BKT transition.
 3. **Missing signals:** If correctness is `None` (e.g. non-scored hint view), no BKT transition is computed.
-4. **Parameter Versioning:** All learner state updates must persist the parameter version identifier (e.g. `bkt_v1_baseline`).
+4. **Parameter Versioning:** All learner state updates must record the parameter version identifier (e.g. `bkt_v1_baseline`).
 
 ---
 
