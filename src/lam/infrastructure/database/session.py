@@ -11,9 +11,11 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
+from lam.infrastructure.config import settings
+
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "sqlite+aiosqlite:///./lam_dev.db",
+    settings.database_url,
 )
 
 engine: AsyncEngine = create_async_engine(

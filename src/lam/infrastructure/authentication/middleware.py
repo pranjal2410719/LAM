@@ -4,11 +4,18 @@ from dataclasses import dataclass
 
 from fastapi import Header, HTTPException, status
 
+from lam.infrastructure.authentication.jwt import (
+    AuthenticationError,
+    TokenExpiredError,
+    decode_and_verify_token,
+)
+
 
 @dataclass(frozen=True)
 class SecurityContext:
     tenant_id: str
     client_id: str
+    roles: tuple[str, ...] = ()
     is_admin: bool = False
 
 
@@ -16,11 +23,14 @@ async def get_security_context(
     x_tenant_id: str | None = Header(None, alias="X-Tenant-ID"),
     authorization: str | None = Header(None, alias="Authorization"),
 ) -> SecurityContext:
-    """Validates the incoming caller identity and enforces multi-tenant boundary.
+    """Validates incoming caller identity and enforces multi-tenant boundaries.
 
-    Non-negotiable rule:
-    A student ID in a request body or URL path is NOT authorization. Every request
-    must be authenticated and tenant-authorized server-side.
+    Non-negotiable rules:
+    1. A student ID in a request body or URL path is NOT authorization.
+    2. Identity, tenant boundary, and administrative privileges are derived strictly
+       from cryptographically verified token claims, never caller-controlled string prefixes.
+    3. If X-Tenant-ID is supplied, it must match the token's authorized tenant claim
+       unless the caller possesses verified multi-tenant administrative roles.
     """
     if not authorization:
         raise HTTPException(
@@ -28,7 +38,6 @@ async def get_security_context(
             detail="Missing Authorization header",
         )
 
-    # Validate bearer token format
     parts = authorization.split()
     if len(parts) != 2 or parts[0].lower() != "bearer":
         raise HTTPException(
@@ -36,22 +45,63 @@ async def get_security_context(
             detail="Invalid Authorization token format. Expected 'Bearer <token>'",
         )
 
-    token = parts[1]
-    if not token or len(token) < 8:
+    token = parts[1].strip()
+    if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
+            detail="Invalid or empty token",
         )
 
-    if not x_tenant_id or not x_tenant_id.strip():
+    try:
+        claims = decode_and_verify_token(token)
+    except TokenExpiredError as err:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Missing required X-Tenant-ID header",
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Token expired: {err!s}",
+        ) from err
+    except AuthenticationError as err:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Invalid token: {err!s}",
+        ) from err
+
+    token_tenant_id = claims.get("tid") or claims.get("tenant_id")
+    client_id = claims.get("sub") or claims.get("client_id")
+    raw_roles = claims.get("roles", [])
+    roles = tuple(raw_roles) if isinstance(raw_roles, list) else ()
+
+    if not token_tenant_id or not isinstance(token_tenant_id, str):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token missing valid tenant claim ('tid')",
         )
 
-    # In M0 foundation, validate token scope against tenant
+    if not client_id or not isinstance(client_id, str):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token missing valid subject claim ('sub')",
+        )
+
+    is_admin = "admin" in roles or "system" in roles
+
+    # Tenant enforcement:
+    # If caller specifies X-Tenant-ID, it must match token tenant unless admin
+    effective_tenant_id = token_tenant_id
+    if x_tenant_id and x_tenant_id.strip():
+        requested_tenant = x_tenant_id.strip()
+        if requested_tenant != token_tenant_id and not is_admin:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    f"Forbidden: Token tenant '{token_tenant_id}' does not match "
+                    f"requested tenant '{requested_tenant}'"
+                ),
+            )
+        effective_tenant_id = requested_tenant
+
     return SecurityContext(
-        tenant_id=x_tenant_id.strip(),
-        client_id=f"client_{token[:8]}",
-        is_admin=token.startswith("admin_"),
+        tenant_id=effective_tenant_id,
+        client_id=client_id,
+        roles=roles,
+        is_admin=is_admin,
     )

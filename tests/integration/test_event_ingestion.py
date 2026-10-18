@@ -1,15 +1,12 @@
-"""Integration tests for atomic event ingestion, idempotency, and state updates."""
-
 import pytest
 from httpx import AsyncClient
+
+from tests.conftest import auth_headers
 
 
 @pytest.mark.asyncio
 async def test_successful_event_ingestion(async_client: AsyncClient) -> None:
-    headers = {
-        "Authorization": "Bearer test_secret_token_12345",
-        "X-Tenant-ID": "tenant_school_a",
-    }
+    headers = auth_headers(tenant_id="tenant_school_a", client_id="client_alice")
     payload = {
         "event_id": "evt_100",
         "student_id": "student_alice",
@@ -46,10 +43,7 @@ async def test_successful_event_ingestion(async_client: AsyncClient) -> None:
 @pytest.mark.asyncio
 async def test_idempotent_event_deduplication(async_client: AsyncClient) -> None:
     """Non-negotiable rule: Replaying the same event MUST NOT apply duplicate updates."""
-    headers = {
-        "Authorization": "Bearer test_secret_token_12345",
-        "X-Tenant-ID": "tenant_school_a",
-    }
+    headers = auth_headers(tenant_id="tenant_school_a", client_id="client_bob")
     payload = {
         "event_id": "evt_replay_01",
         "student_id": "student_bob",
@@ -89,10 +83,7 @@ async def test_assisted_success_does_not_advance_independent_mastery(
 
     independent mastery.
     """
-    headers = {
-        "Authorization": "Bearer test_secret_token_12345",
-        "X-Tenant-ID": "tenant_school_a",
-    }
+    headers = auth_headers(tenant_id="tenant_school_a", client_id="client_charlie")
     payload = {
         "event_id": "evt_assisted_01",
         "student_id": "student_charlie",

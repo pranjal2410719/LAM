@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.2] - 2026-10-18 (Authentication Security Hardening & Concurrency Safety)
+
+### Added
+- **Cryptographic JWT Authentication (`src/lam/infrastructure/authentication/jwt.py`):**
+  - Cryptographically signed JWT token creation and verification (`PyJWT`).
+  - Strict verification of signature, expiration (`exp`), issuer (`iss`), and audience (`aud`).
+  - Explicit claims for tenant (`tid`), client subject (`sub`), and roles (`roles`).
+  - Configuration settings via `pydantic-settings` in `src/lam/infrastructure/config.py`.
+- **PostgreSQL High-Concurrency & Race Verification (`tests/integration/test_postgres_concurrency.py`):**
+  - Simultaneous duplicate event submissions race test with 10 concurrent requests (1 ingested, 9 duplicate, 0 internal errors).
+  - Concurrent distinct event submissions for same student safely serialized via PostgreSQL row locks (`with_for_update`).
+  - Optimistic concurrency control test (`StateVersionConflictError` on stale `state_version`).
+  - Atomic transaction rollback test (no partial writes on failed requests).
+- **Expanded Security Test Suite (`tests/security/test_tenant_isolation.py`):**
+  - Rejection of forged/tampered tokens (401).
+  - Rejection of expired tokens (401).
+  - Rejection of cross-tenant token mismatch with `X-Tenant-ID` header (403).
+  - Rejection of caller-controlled `admin_` prefix escalation attempts.
+  - Verification of authorized multi-tenant access for tokens with verified `admin` role claim.
+
+### Fixed
+- **Authentication Bypass / Spoofing Vulnerability (P1 Security Fix):**
+  - Eliminated caller-controlled token string prefix checking (`admin_`) and unverified client ID derivation.
+  - Enforced server-side cryptographic token validation and tenant claim binding.
+- **Concurrent Ingestion & State Race Conditions (P2 Concurrency Fix):**
+  - Added savepoint retries to `LedgerRepository` to handle race conditions during concurrent duplicate event submissions without raising 500s.
+  - Added row-level locking (`with_for_update`) to `StateRepository.record_event_state_transition` ensuring serializable, race-safe learner state updates.
+
+### Changed
+- **Mastery Decision Records (`docs/decisions/`):**
+  - Clarified statistical distinction in `D-01` and `D-02`: standard BKT yields a point estimate $P(L_t)$, not a parameter credible interval. Defined M1 operational epistemic uncertainty bound based on unassisted observation counts.
+  - Explicitly marked candidate parameter status ($P(L_0)=0.10, P(T)=0.20, P(G)=0.20, P(S)=0.10$).
+
+---
+
 ## [0.1.1] - 2026-10-18 (M0 Hardening & PostgreSQL Verification)
 
 ### Added

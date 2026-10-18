@@ -16,7 +16,7 @@ Bayesian Knowledge Tracing (Corbett & Anderson, 1995) models the probability tha
 
 ## 2. Mathematical Equations
 
-For any concept, knowledge state is represented as $P(L_t) \in [0, 1]$.
+For any concept, knowledge state is represented as a point probability $P(L_t) \in [0, 1]$.
 
 ### Step 1: Posterior Calculation upon Observation $Obs_t \in \{Correct, Incorrect\}$
 * **If response is Correct ($Obs_t = 1$):**
@@ -27,6 +27,9 @@ For any concept, knowledge state is represented as $P(L_t) \in [0, 1]$.
 
 ### Step 2: Learning Transition to Next Opportunity
 $$P(L_{t+1}) = P(L_t \mid Obs_t) + (1 - P(L_t \mid Obs_t)) \cdot P(T)$$
+
+### 2.1 Point-Estimate Semantics & Epistemic Uncertainty
+Note that standard BKT computes a scalar point estimate $P(L_t = 1)$. It does **not** estimate parameter uncertainty or output a Bayesian credible interval. As established in Decision Record [D-01](D-01-mastery-policy.md#33-mathematical-clarification-uncertainty-vs-point-estimate-bkt), the uncertainty metric in Milestone M1 is treated as an operational epistemic confidence bound based on unassisted observation count, pending full posterior inference in Milestone M3.
 
 ---
 

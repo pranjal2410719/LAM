@@ -16,6 +16,7 @@ from sqlalchemy.pool import NullPool
 
 from lam.infrastructure.database.session import get_db_session
 from lam.main import app
+from tests.conftest import auth_headers
 
 POSTGRES_TEST_URL = os.getenv(
     "POSTGRES_TEST_URL",
@@ -84,10 +85,7 @@ async def test_postgres_connection_and_table_presence(pg_session: AsyncSession) 
 @pytest.mark.asyncio
 async def test_postgres_event_ingestion_and_state_update(pg_client: AsyncClient) -> None:
     """Tests end-to-end event ingestion against live PostgreSQL."""
-    headers = {
-        "Authorization": "Bearer token_pg_test_12345",
-        "X-Tenant-ID": "tenant_pg_alpha",
-    }
+    headers = auth_headers(tenant_id="tenant_pg_alpha", client_id="pg_client_1")
     payload = {
         "event_id": "pg_evt_001",
         "student_id": "student_pg_1",
@@ -119,10 +117,7 @@ async def test_postgres_event_ingestion_and_state_update(pg_client: AsyncClient)
 @pytest.mark.asyncio
 async def test_postgres_idempotency_deduplication(pg_client: AsyncClient) -> None:
     """Tests that duplicate event replay against PostgreSQL does not re-apply updates."""
-    headers = {
-        "Authorization": "Bearer token_pg_test_12345",
-        "X-Tenant-ID": "tenant_pg_alpha",
-    }
+    headers = auth_headers(tenant_id="tenant_pg_alpha", client_id="pg_client_2")
     payload = {
         "event_id": "pg_evt_dup_001",
         "student_id": "student_pg_2",
@@ -156,10 +151,7 @@ async def test_postgres_idempotency_deduplication(pg_client: AsyncClient) -> Non
 @pytest.mark.asyncio
 async def test_postgres_tenant_isolation(pg_client: AsyncClient) -> None:
     """Tests cross-tenant isolation enforcement in PostgreSQL."""
-    headers_a = {
-        "Authorization": "Bearer token_tenant_a_001",
-        "X-Tenant-ID": "tenant_pg_alpha",
-    }
+    headers_a = auth_headers(tenant_id="tenant_pg_alpha", client_id="pg_client_alpha")
     payload = {
         "event_id": "pg_evt_iso_100",
         "student_id": "student_shared_pg",
@@ -175,10 +167,7 @@ async def test_postgres_tenant_isolation(pg_client: AsyncClient) -> None:
     assert r.status_code == 200
 
     # Query from Tenant B (should return 404)
-    headers_b = {
-        "Authorization": "Bearer token_tenant_b_002",
-        "X-Tenant-ID": "tenant_pg_beta",
-    }
+    headers_b = auth_headers(tenant_id="tenant_pg_beta", client_id="pg_client_beta")
     r_b = await pg_client.get(
         "/v1/learners/student_shared_pg/concepts/physics.vectors/state",
         headers=headers_b,

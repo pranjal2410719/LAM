@@ -4,6 +4,7 @@ from enum import StrEnum
 from typing import Any
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from lam.domain.events.models import LearningEvent
@@ -36,10 +37,10 @@ class LedgerRepository:
         - If new: persists and returns (INGESTED, model).
         - If duplicate with identical parameters: returns (DUPLICATE, existing_model).
         - If conflict (same event_id, different attributes): returns (CONFLICT, existing_model).
+        - Race-safe: handles concurrent duplicate submissions gracefully via database savepoints.
         """
         existing = await self.get_by_event_id(event.tenant_id, event.event_id)
         if existing:
-            # Check for conflict: same event_id but different student, session, or item
             if (
                 existing.student_id != event.student_id
                 or existing.session_id != event.session_id
@@ -74,6 +75,21 @@ class LedgerRepository:
             provenance=provenance_dict,
             schema_version=event.schema_version,
         )
-        self.session.add(model)
-        await self.session.flush()
-        return IngestionStatus.INGESTED, model
+
+        try:
+            async with self.session.begin_nested():
+                self.session.add(model)
+                await self.session.flush()
+            return IngestionStatus.INGESTED, model
+        except IntegrityError:
+            # Race condition: another concurrent transaction committed this event
+            existing_concurrent = await self.get_by_event_id(event.tenant_id, event.event_id)
+            if existing_concurrent:
+                if (
+                    existing_concurrent.student_id != event.student_id
+                    or existing_concurrent.session_id != event.session_id
+                    or existing_concurrent.item_id != event.item_id
+                ):
+                    return IngestionStatus.CONFLICT, existing_concurrent
+                return IngestionStatus.DUPLICATE, existing_concurrent
+            raise

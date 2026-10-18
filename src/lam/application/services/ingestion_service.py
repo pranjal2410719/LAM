@@ -1,13 +1,10 @@
 """Application service for atomic, idempotent learning event ingestion."""
 
-from datetime import UTC, datetime
-
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from lam.api.schemas.events import EventIngestRequest, EventIngestResponse
 from lam.domain.events.models import LearningEvent
-from lam.domain.learner_state.models import LearnerConceptState
 from lam.infrastructure.authentication.middleware import SecurityContext
 from lam.infrastructure.repositories.ledger_repository import (
     IngestionStatus,
@@ -25,8 +22,20 @@ class EventIngestionService:
     async def ingest_event(
         self, request: EventIngestRequest, sec: SecurityContext
     ) -> EventIngestResponse:
-        """Processes and records an incoming learning event transactionally."""
-        # Enforce server-side tenant scoping
+        """Processes and records an incoming learning event transactionally.
+
+        Guarantees:
+        - Atomic ledger record and learner state update within a single transaction.
+        - Full rollback on failure.
+        - Strict idempotency against duplicate event submissions.
+        - Concurrency safety with row-level locks on state updates.
+
+        Note on Milestone M0/M1 State Updates:
+        The current fixed-step (+0.2 / +0.1) increments are interim M0 scaffolding placeholders
+        to establish ledger/state mechanics. They MUST NOT be exposed to downstream clients as
+        calibrated mastery probabilities until replaced by the validated Bayesian Knowledge
+        Tracing (BKT) domain engine in Milestone M1.
+        """
         tenant_id = sec.tenant_id
 
         domain_event = LearningEvent(
@@ -52,88 +61,50 @@ class EventIngestionService:
             schema_version=request.schema_version,
         )
 
-        # 1. Idempotency Check & Ledger Persistence
-        ingest_status, event_model = await self.ledger_repo.ingest_event(domain_event)
+        try:
+            # 1. Idempotency Check & Ledger Persistence (with race-safe savepoint)
+            ingest_status, event_model = await self.ledger_repo.ingest_event(domain_event)
 
-        if ingest_status == IngestionStatus.CONFLICT:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Event ID '{request.event_id}' already exists with conflicting attributes",
-            )
+            if ingest_status == IngestionStatus.CONFLICT:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=(
+                        f"Event ID '{request.event_id}' already exists with conflicting attributes"
+                    ),
+                )
 
-        if ingest_status == IngestionStatus.DUPLICATE:
-            return EventIngestResponse(
-                status="duplicate",
-                event_id=event_model.event_id,
-                tenant_id=event_model.tenant_id,
-                student_id=event_model.student_id,
-                affected_concept_ids=event_model.concept_ids,
-                ingested_at=event_model.ingested_at,
-                message="Event already ingested; no state changes applied.",
-            )
+            if ingest_status == IngestionStatus.DUPLICATE:
+                return EventIngestResponse(
+                    status="duplicate",
+                    event_id=event_model.event_id,
+                    tenant_id=event_model.tenant_id,
+                    student_id=event_model.student_id,
+                    affected_concept_ids=event_model.concept_ids,
+                    ingested_at=event_model.ingested_at,
+                    message="Event already ingested; no state changes applied.",
+                )
 
-        # 2. Update Learner State for each referenced concept
-        now = datetime.now(UTC)
-        for concept_id in domain_event.concept_ids:
-            current_state = await self.state_repo.get_concept_state(
-                tenant_id=tenant_id,
-                student_id=domain_event.student_id,
-                concept_id=concept_id,
-            )
-            if not current_state:
-                current_state = LearnerConceptState(
+            # 2. Update Learner State for each referenced concept atomically with row locks
+            for concept_id in domain_event.concept_ids:
+                await self.state_repo.record_event_state_transition(
                     tenant_id=tenant_id,
                     student_id=domain_event.student_id,
                     concept_id=concept_id,
-                    concept_mastery=0.0,
-                    independent_mastery=0.0,
-                    assisted_performance=0.0,
-                    uncertainty=1.0,
-                    total_events_count=1,
-                    state_version=1,
-                    last_event_id=domain_event.event_id,
-                    last_practiced_at=now,
+                    event=domain_event,
                 )
-            else:
-                current_state.total_events_count += 1
-                current_state.last_practiced_at = now
-                current_state.last_event_id = domain_event.event_id
 
-            # Track assisted vs unassisted metrics
-            is_assisted = (
-                domain_event.assistance_level is not None and domain_event.assistance_level > 0
-            ) or (domain_event.hints_used is not None and domain_event.hints_used > 0)
+            # Atomic commit of ledger event and learner states
+            await self.session.commit()
 
-            if is_assisted:
-                current_state.assisted_attempts_count += 1
-                if domain_event.correctness is True:
-                    # Assisted success increases assisted performance, NOT independent mastery!
-                    current_state.assisted_performance = min(
-                        1.0, current_state.assisted_performance + 0.1
-                    )
-            else:
-                current_state.independent_attempts_count += 1
-                if domain_event.correctness is True:
-                    current_state.consecutive_independent_successes += 1
-                    current_state.independent_mastery = min(
-                        1.0, current_state.independent_mastery + 0.2
-                    )
-                    current_state.uncertainty = max(0.1, current_state.uncertainty - 0.15)
-                elif domain_event.correctness is False:
-                    current_state.consecutive_independent_successes = 0
-                    current_state.uncertainty = max(0.1, current_state.uncertainty - 0.05)
-
-            await self.state_repo.save_concept_state(current_state)
-
-        # Commit transaction atomically
-        await self.session.commit()
-
-        return EventIngestResponse(
-            status="ingested",
-            event_id=event_model.event_id,
-            tenant_id=event_model.tenant_id,
-            student_id=event_model.student_id,
-            affected_concept_ids=domain_event.concept_ids,
-            ingested_at=event_model.ingested_at,
-            message="Event successfully validated, stored, and learner state updated.",
-        )
+            return EventIngestResponse(
+                status="ingested",
+                event_id=event_model.event_id,
+                tenant_id=event_model.tenant_id,
+                student_id=event_model.student_id,
+                affected_concept_ids=domain_event.concept_ids,
+                ingested_at=event_model.ingested_at,
+                message="Event successfully validated, stored, and learner state updated.",
+            )
+        except Exception:
+            await self.session.rollback()
+            raise

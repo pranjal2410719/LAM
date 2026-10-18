@@ -10,9 +10,24 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
+from lam.infrastructure.authentication.jwt import create_access_token
 from lam.infrastructure.database.models import Base
 from lam.infrastructure.database.session import get_db_session
 from lam.main import app
+
+
+def auth_headers(
+    tenant_id: str = "tenant_test",
+    client_id: str = "test_client",
+    roles: list[str] | None = None,
+) -> dict[str, str]:
+    """Helper returning cryptographically verified Authorization and X-Tenant-ID headers."""
+    token = create_access_token(tenant_id=tenant_id, client_id=client_id, roles=roles)
+    return {
+        "Authorization": f"Bearer {token}",
+        "X-Tenant-ID": tenant_id,
+    }
+
 
 # Isolated SQLite in-memory database for testing
 TEST_DB_URL = "sqlite+aiosqlite:///:memory:"
