@@ -3,14 +3,13 @@
 import os
 from collections.abc import AsyncGenerator
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
     async_sessionmaker,
     create_async_engine,
 )
-
-from lam.infrastructure.database.models import Base
 
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
@@ -40,7 +39,11 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
             await session.close()
 
 
-async def init_db(target_engine: AsyncEngine = engine) -> None:
-    """Initialize database tables for testing or local development."""
-    async with target_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+async def verify_db_connection(target_engine: AsyncEngine = engine) -> bool:
+    """Verifies database connectivity without mutating schema.
+
+    Schema lifecycle is managed strictly and exclusively through Alembic migrations.
+    """
+    async with target_engine.connect() as conn:
+        await conn.execute(text("SELECT 1"))
+    return True

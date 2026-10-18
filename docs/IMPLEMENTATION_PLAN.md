@@ -1,6 +1,6 @@
 # LAM Implementation Plan & Task Backlog
 
-**Version:** 1.0  
+**Version:** 1.1  
 **Status:** Active  
 **Last Updated:** 2026-10-18  
 
@@ -10,12 +10,13 @@
 
 | Task ID | Task Description | Dependencies | Acceptance Criteria | Tests & Evidence | Status |
 |:---|:---|:---:|:---|:---|:---:|
-| `M0-01` | **Repository Scaffold & Tooling** | None | Directory structure created, `pyproject.toml` configured with `ruff`, `mypy --strict`, `pytest`. | `ruff check`, `mypy`, `pytest` pass in CI. | `VERIFIED` |
+| `M0-01` | **Repository Scaffold & Tooling** | None | Directory structure created, `pyproject.toml` configured with `ruff`, `mypy --strict`, `pytest`. | `ruff check`, `mypy`, `pytest` pass. | `VERIFIED` |
 | `M0-02` | **Typed Event & State Domain Contracts** | `M0-01` | Pydantic v2 domain models for `LearningEvent` and `LearnerConceptState` strictly preventing coercion of nulls. | `tests/unit/test_events_validation.py` | `VERIFIED` |
-| `M0-03` | **SQLAlchemy Database & Alembic Migrations** | `M0-02` | Tables for `learning_events` and `learner_states` with unique constraints for idempotency and optimistic locking. Migrations upgrade and downgrade cleanly. | `alembic upgrade head && alembic downgrade base` | `VERIFIED` |
-| `M0-04` | **Ledger Ingestion & Idempotency Service** | `M0-03` | Atomic event ingestion. Replaying duplicate event returns duplicate status without duplicate state mutation. Conflicting reuse raises HTTP 409. | `tests/integration/test_event_ingestion.py` | `VERIFIED` |
+| `M0-03` | **SQLAlchemy Database & Alembic Migrations** | `M0-02` | Tables for `learning_events` and `learner_states` with unique constraints. Migrations upgrade and downgrade cleanly. | `alembic upgrade head && alembic downgrade base` | `VERIFIED` |
+| `M0-04` | **Ledger Ingestion & Idempotency Service** | `M0-03` | Atomic event ingestion. Replay returns duplicate status without duplicate state mutation. Conflicting reuse raises HTTP 409. | `tests/integration/test_event_ingestion.py` | `VERIFIED` |
 | `M0-05` | **Authentication & Multi-Tenant Middleware** | `M0-01` | Server-side tenant authorization. Token validation. Cross-tenant access blocked. | `tests/security/test_tenant_isolation.py` | `VERIFIED` |
 | `M0-06` | **REST API Routes & Stable Error Formatting** | `M0-04`, `M0-05` | `POST /v1/events`, `GET /v1/learners/{id}/state`, `GET /health/live`, `GET /health/ready` with stable machine-readable error format. | Smoke test & integration tests. | `VERIFIED` |
+| `M0-HARDENING` | **PostgreSQL Verification & Hygiene** | `M0-06` | Startup verifies connection without `create_all()`; live PostgreSQL 16 integration tests pass; `.gitignore` established; generated artifacts untracked; CI workflow created. | `tests/integration/test_postgres_integration.py` (4/4 passed), `.github/workflows/ci.yml`. | `VERIFIED` |
 
 ---
 
@@ -23,9 +24,9 @@
 
 | Task ID | Task Description | Dependencies | Acceptance Criteria | Status |
 |:---|:---|:---:|:---|:---:|
-| `M1-01` | **Formalize Decisions D-01 & D-02** | None | Decision records for Mastery Policy (`D-01`) and BKT parameters (`D-02`) written and submitted for review. | `IN_PROGRESS` |
-| `M1-02` | **BKT Knowledge Tracing Engine** | `M1-01` | Pure Python implementation of Standard BKT equations with $P(L_0), P(T), P(G), P(S)$. Deterministic state updates. | `NOT_STARTED` |
-| `M1-03` | **Assisted vs. Unassisted Segregation** | `M1-02` | Unassisted attempts update independent mastery; assisted attempts update assisted performance only. | `NOT_STARTED` |
+| `M1-01` | **Formalize Decisions D-01 & D-02** | None | Decision records for Mastery Policy (`D-01`) and BKT parameters (`D-02`) written with exact equations and test vectors. | `COMPLETED` (Drafted as `PROPOSED`, awaiting sign-off) |
+| `M1-02` | **BKT Knowledge Tracing Engine** | `M1-01` (Sign-off) | Pure Python implementation of Standard BKT equations with $P(L_0), P(T), P(G), P(S)$. Deterministic state updates. | `BLOCKED` (Awaiting D-01/D-02 Approval) |
+| `M1-03` | **Assisted vs. Unassisted Segregation** | `M1-02` | Unassisted attempts update BKT independent mastery; assisted attempts update assisted performance only. | `NOT_STARTED` |
 | `M1-04` | **Misconception Diagnosis Engine** | `D-04` | Competing hypothesis tracking across standard taxonomy (`conceptual`, `procedural`, `guessing`, etc.) with confidence. | `NOT_STARTED` |
 | `M1-05` | **Rule-Based Decision Engine (Next Action)** | `D-05`, `D-06` | Deterministic priority ranking: Safety $\rightarrow$ Prerequisite $\rightarrow$ Misconception $\rightarrow$ Practice. Endpoint `POST /v1/recommendations`. | `NOT_STARTED` |
 | `M1-06` | **M1 Reproducibility & End-to-End Test Gate** | `M1-02`–`M1-05` | Fixed replay scenarios produce identical results; manual test records logged. | `NOT_STARTED` |
