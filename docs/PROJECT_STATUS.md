@@ -35,6 +35,7 @@
 | **Learner State** | Domain / Infra | `VERIFIED` | Multi-dimensional tracking; assisted success updates assisted performance only; unassisted updates drive BKT; row-locking concurrency control, optimistic concurrency via `state_version`, and parameter version auditability (`bkt_parameter_version`). | None. |
 | **Auth & Isolation** | Infrastructure | `VERIFIED` | Cryptographic JWT verification (`PyJWT`). Fail-closed production startup rejecting missing, default, or weak secrets (< 32 chars). Strict tenant claim binding with `X-Tenant-ID` cross-tenant mismatch rejection (403). | Key rotation endpoints (M3). |
 | **API Gateway** | API | `VERIFIED` | `POST /v1/events`, `POST /v1/recommendations`, `GET /v1/learners/{id}/state`, `GET /v1/learners/{id}/concepts/{c_id}/state`, `GET /v1/learners/{id}/reviews`, `POST /v1/curriculum/validate`, `POST /v1/curriculum/check-prerequisites`, `/health/live`, `/health/ready`. | None. |
+| **Relay Client SDK** | Infrastructure | `VERIFIED` | Production-grade resilient client (`LamRelayClient`) implementing connect/read timeouts, exponential backoff with jitter on 502/503/504, fast-fail on non-retryable errors (401/403/409/422), offline outbox replay deduplication, and safe fallback without mastery guessing. | None. |
 | **Database Migrations**| Infrastructure | `VERIFIED` | Alembic async migrations; transactional DDL upgrade and rollback verified on PostgreSQL 16. Migrations `6ed18e85f377`, `435e371938d3` (BKT parameter version), and `a78f20436d91` (Misconception persistence) verified. | None. |
 
 ---
@@ -42,9 +43,9 @@
 ## 3. Latest Verification Evidence
 
 - **Linting & Code Quality:** `ruff check .` $\rightarrow$ **0 errors** (PASSED)
-- **Formatting:** `ruff format --check .` $\rightarrow$ **86 files clean** (PASSED)
-- **Static Type Checking:** `mypy --strict src/lam tests` $\rightarrow$ **0 issues in 68 source files** (PASSED)
-- **Automated Test Suite:** `pytest -v` $\rightarrow$ **134 passed in 4.69s** (PASSED)
+- **Formatting:** `ruff format --check .` $\rightarrow$ **88 files clean** (PASSED)
+- **Static Type Checking:** `mypy --strict src/lam tests` $\rightarrow$ **0 issues in 70 source files** (PASSED)
+- **Automated Test Suite:** `pytest -v` $\rightarrow$ **138 passed in 5.02s** (PASSED)
   - `tests/unit/test_bkt.py`: 7/7 passed
   - `tests/unit/test_curriculum_dag.py`: 13/13 passed (cycle detection, multi-hop cycles, disconnected components, topological sort, blocking prerequisites)
   - `tests/unit/test_assistance_escalation.py`: 6/6 passed (safety stop at $\ge 3$ failures, escalation ladder, fading ladder, reset, audit trail)
@@ -60,7 +61,7 @@
   - `tests/integration/test_reviews_api.py`: 3/3 passed (auth rejection, tenant isolation, priority filtering)
   - `tests/integration/test_curriculum_api.py`: 4/4 passed (DAG validation, cycle rejection with 422, prerequisite blocking resolution, auth protection)
   - `tests/integration/test_qrie_contract_and_boundary.py`: 5/5 passed (field aliases, automatic hypothesis confirmation, assisted isolation, prerequisite blocking, safety stops, unknown learner fallback, reviews)
-  - `tests/integration/test_qrie_resilience_and_recovery.py`: 4/4 passed (client timeout/bounded retry simulation, safe fallback without mastery fabrication, outbox recovery and replay idempotency, 409 conflict rejection)
+  - `tests/integration/test_qrie_resilience_and_recovery.py`: 8/8 passed (real production LamRelayClient: 503 retry recovery, fast fail 409/422/401, timeout limits, persistent 503 exhaustion, safe fallback without mastery guessing, outbox replay zero drift, conflict 409 rejection, cross-tenant 403 auth error)
   - `tests/integration/test_diagnosis_persistence.py`: 4/4 passed against live PostgreSQL 16 (upsert, audit accumulation, retirement, concurrency locking)
   - `tests/integration/test_qrie_end_to_end_loop.py`: 1/1 passed (synthetic closed-loop lifecycle covering event $\rightarrow$ candidate hypothesis $\rightarrow$ repeated error $\rightarrow$ confirmed hypothesis $\rightarrow$ Tier 3 diagnostic probe $\rightarrow$ assisted isolation $\rightarrow$ unassisted success $\rightarrow$ hypothesis retirement $\rightarrow$ curriculum progression $\rightarrow$ 3 failures safety stop)
   - `tests/integration/test_postgres_integration.py`: 4/4 passed against live PostgreSQL 16

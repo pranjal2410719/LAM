@@ -10,17 +10,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.5.1] - 2026-10-19 (M2 Release Candidate Resilience & Contract Verification)
 
 ### Added
-- **Qrie Client Resilience & Failure Recovery Suite (`tests/integration/test_qrie_resilience_and_recovery.py`):**
-  - Simulated client bounded retries (3 attempts) with jittered backoff under transient 503 HTTP responses.
-  - Safe fallback verification ensuring client fallback (`diagnostic_probe`, `safe_fallback=True`) does not fabricate or guess student mastery when LAM is unreachable.
-  - Offline outbox queueing, network restoration recovery, and idempotent replay asserting zero duplicate state drift.
-  - Attribute conflict rejection: verifies that reusing an existing `event_id` with conflicting attributes (`student_id` or `item_id`) returns HTTP 409 Conflict.
-  - Integration suite `tests/integration/test_qrie_resilience_and_recovery.py` (4/4 passed).
+- **Production-Grade Resilient Relay Client SDK (`src/lam/infrastructure/clients/lam_client.py`):**
+  - Implemented `LamRelayClient` with explicit connect (2.0s) and read (5.0s) timeouts.
+  - Bounded exponential backoff with randomized jitter on transient 502/503/504 errors.
+  - Fast-fail dispatch on non-retryable errors: 409 (`LamConflictError`), 401/403 (`LamAuthenticationError`), and 422 (`LamValidationError`).
+  - Safe fallback recommendation generator (`safe_fallback_recommendation`) that strictly preserves invariant: never fabricates mastery, uncertainty, or BKT parameters when LAM is offline.
+  - Offline outbox sequential replay (`replay_outbox`) with duplicate deduplication and conflict reporting.
+- **Client Resilience & Failure Recovery Suite (`tests/integration/test_qrie_resilience_and_recovery.py`):**
+  - Automated tests covering transient 503 recovery, non-retryable fast-fail, timeout bounds, retry exhaustion, safe fallback without mastery guessing, outbox replay zero drift, 409 conflict rejection, and 403 cross-tenant auth rejection.
+  - Integration suite `tests/integration/test_qrie_resilience_and_recovery.py` (8/8 passed).
 
 ### Verification
-- Full test suite: **134/134 tests passed in 4.58s** with 0 warnings.
-- Strict type checking: `mypy --strict src/lam tests` passed with **0 issues in 68 source files**.
-- Linting and formatting: `ruff check .` (0 errors) and `ruff format --check .` clean across **86 files**.
+- Full test suite: **138/138 tests passed in 5.02s** with 0 warnings.
+- Strict type checking: `mypy --strict src/lam tests` passed with **0 issues in 70 source files**.
+- Linting and formatting: `ruff check .` (0 errors) and `ruff format --check .` clean across **88 files**.
 - PostgreSQL 16 migration head: `a78f20436d91` verified with transactional DDL.
 
 ---

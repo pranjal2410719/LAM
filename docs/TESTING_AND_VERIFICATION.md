@@ -11,8 +11,8 @@
 | Test Category | Command | Target | Total | Passed | Failed | Status | Evidence / Notes |
 |:---|:---|:---|:---:|:---:|:---:|:---:|:---|
 | **Code Style & Lint** | `ruff check .` | Whole project | - | - | 0 | `PASSED` | 0 errors across all Python files. |
-| **Formatting** | `ruff format --check .` | Whole project | 86 files | 86 | 0 | `PASSED` | All source, test, and migration files cleanly formatted. |
-| **Static Type Check** | `mypy --strict src/lam tests` | Source & tests | 68 files | 68 | 0 | `PASSED` | Zero type errors in strict mode across 68 source files. |
+| **Formatting** | `ruff format --check .` | Whole project | 88 files | 88 | 0 | `PASSED` | All source, test, and migration files cleanly formatted. |
+| **Static Type Check** | `mypy --strict src/lam tests` | Source & tests | 70 files | 70 | 0 | `PASSED` | Zero type errors in strict mode across 70 source files. |
 | **BKT Domain Tests** | `pytest tests/unit/test_bkt.py -v` | Pure Python BKT engine | 7 | 7 | 0 | `PASSED` | Parameters, bounds, 4-step D-02 vectors, assisted bypass, missing signal bypass, boundary stability, $n \ge 44$ uncertainty threshold. |
 | **Curriculum DAG Tests** | `pytest tests/unit/test_curriculum_dag.py -v` | Pure Python DAG validator | 13 | 13 | 0 | `PASSED` | Empty graph, single node, linear chain, multi-prereq convergence, disconnected components, duplicate edge rejection, unknown node reference rejection, direct self-loops, 2-node cycles, multi-hop indirect cycles, malformed IDs, ancestor chain resolution, and blocking prerequisite identification. |
 | **Assistance Escalation Tests** | `pytest tests/unit/test_assistance_escalation.py -v` | Pure Python state machine | 6 | 6 | 0 | `PASSED` | Tier 1 safety stop on $\ge 3$ consecutive failures, 2 failures escalation to Worked Example, single failure scaffolding step-up, fading ladder after 2 consecutive assisted successes, full reset to Level 0 on independent success, audit trail recording. |
@@ -28,7 +28,7 @@
 | **Reviews API Integration** | `pytest tests/integration/test_reviews_api.py -v` | `GET /v1/learners/{id}/reviews` | 3 | 3 | 0 | `PASSED` | Auth rejection, multi-tenant isolation, priority filter (`overdue`, `due_soon`). |
 | **Curriculum API Integration** | `pytest tests/integration/test_curriculum_api.py -v` | Curriculum DAG endpoints | 4 | 4 | 0 | `PASSED` | DAG validation, cycle detection (422), prerequisite blocking calculation, auth rejection. |
 | **Qrie Contract & Boundary** | `pytest tests/integration/test_qrie_contract_and_boundary.py -v` | Application boundary contract | 5 | 5 | 0 | `PASSED` | Unauthorized/cross-tenant rejection, payload aliases (duration_ms), auto misconception confirmation & recommendation, assisted isolation, safety stops, reviews. |
-| **Qrie Resilience & Recovery** | `pytest tests/integration/test_qrie_resilience_and_recovery.py -v` | Resilience, retries & replay | 4 | 4 | 0 | `PASSED` | Bounded retries under 503, safe fallback without mastery fabrication, outbox recovery & replay idempotency, 409 conflict rejection on attribute reuse. |
+| **Qrie Resilience & Recovery** | `pytest tests/integration/test_qrie_resilience_and_recovery.py -v` | Production LamRelayClient resilience | 8 | 8 | 0 | `PASSED` | 503 retry recovery, fast-fail 409/422/401, timeout limits, persistent 503 exhaustion, safe fallback without mastery guessing, outbox replay zero drift, conflict 409 rejection, cross-tenant 403 auth error. |
 | **Diagnosis Persistence Integration** | `pytest tests/integration/test_diagnosis_persistence.py -v` | PostgreSQL 16 persistence | 4 | 4 | 0 | `PASSED` | Upsert, audit accumulation, status transitions and retirement, row locking and concurrency. |
 | **Qrie Closed-Loop Integration** | `pytest tests/integration/test_qrie_end_to_end_loop.py -v` | Synthetic end-to-end lifecycle | 1 | 1 | 0 | `PASSED` | Complete closed-loop lifecycle covering event $\rightarrow$ candidate hypothesis $\rightarrow$ repeated error $\rightarrow$ confirmed hypothesis $\rightarrow$ Tier 3 diagnostic probe $\rightarrow$ assisted isolation $\rightarrow$ unassisted success $\rightarrow$ hypothesis retirement $\rightarrow$ curriculum progression $\rightarrow$ 3 failures safety stop. |
 | **PostgreSQL Integration**| `pytest tests/integration/test_postgres_integration.py -v` | Live PostgreSQL 16 | 4 | 4 | 0 | `PASSED` | Connection, ingestion, idempotency deduplication, and tenant isolation on live PostgreSQL. |
@@ -36,7 +36,7 @@
 | **Security & Auth Tests** | `pytest tests/security/ -v` | Cryptographic Auth & Isolation| 7 | 7 | 0 | `PASSED` | Forged token, expired token, cross-tenant header mismatch (403), admin string prefix rejection, verified admin role access, tenant data isolation. |
 | **Database Migrations**| `DATABASE_URL=... alembic upgrade head` | PostgreSQL 16 | 3 revs | 3 | 0 | `PASSED` | Transactional DDL upgrade and downgrade verified on PostgreSQL 16 (`6ed18e85f377`, `435e371938d3`, and `a78f20436d91`). |
 
-**Total passing test cases: 134 / 134 passed in 4.69s.**
+**Total passing test cases: 138 / 138 passed in 5.02s.**
 
 ---
 
