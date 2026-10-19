@@ -17,9 +17,9 @@ class LearnerConceptState(BaseModel):
     student_id: str = Field(..., min_length=1, max_length=128)
     concept_id: str = Field(..., min_length=1, max_length=128)
 
-    # Multi-dimensional estimates
-    concept_mastery: float = Field(default=0.0, ge=0.0, le=1.0)
-    independent_mastery: float = Field(default=0.0, ge=0.0, le=1.0)
+    # Multi-dimensional estimates (Initial prior P(L_0) = 0.10)
+    concept_mastery: float = Field(default=0.10, ge=0.0, le=1.0)
+    independent_mastery: float = Field(default=0.10, ge=0.0, le=1.0)
     assisted_performance: float = Field(default=0.0, ge=0.0, le=1.0)
     uncertainty: float = Field(default=1.0, ge=0.0, le=1.0)
 
@@ -37,6 +37,7 @@ class LearnerConceptState(BaseModel):
     # Versioning & Auditability
     state_version: int = Field(default=1, ge=1)
     last_event_id: str | None = None
+    bkt_parameter_version: str | None = Field(default=None, max_length=64)
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 

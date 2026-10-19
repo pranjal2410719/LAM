@@ -96,6 +96,10 @@ async def test_postgres_event_ingestion_and_state_update(pg_client: AsyncClient)
         "event_type": "attempt",
         "correctness": True,
         "assistance_level": 0,
+        "provenance": {
+            "judgment_source": "answer_key",
+            "status": "verified",
+        },
     }
 
     resp = await pg_client.post("/v1/events", json=payload, headers=headers)
@@ -111,6 +115,7 @@ async def test_postgres_event_ingestion_and_state_update(pg_client: AsyncClient)
     state = state_resp.json()
     assert state["total_events_count"] == 1
     assert state["independent_attempts_count"] == 1
+    assert state["bkt_parameter_version"] == "bkt_v1_baseline"
     assert state["state_version"] >= 1
 
 
@@ -128,6 +133,10 @@ async def test_postgres_idempotency_deduplication(pg_client: AsyncClient) -> Non
         "event_type": "attempt",
         "correctness": True,
         "assistance_level": 0,
+        "provenance": {
+            "judgment_source": "answer_key",
+            "status": "verified",
+        },
     }
 
     # First attempt: ingested
@@ -162,6 +171,10 @@ async def test_postgres_tenant_isolation(pg_client: AsyncClient) -> None:
         "event_type": "attempt",
         "correctness": True,
         "assistance_level": 0,
+        "provenance": {
+            "judgment_source": "answer_key",
+            "status": "verified",
+        },
     }
     r = await pg_client.post("/v1/events", json=payload, headers=headers_a)
     assert r.status_code == 200

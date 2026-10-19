@@ -4,8 +4,10 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from lam.api.schemas.events import EventIngestRequest, EventIngestResponse
+from lam.domain.diagnosis.engine import DiagnosisEngine
 from lam.domain.events.models import LearningEvent
 from lam.infrastructure.authentication.middleware import SecurityContext
+from lam.infrastructure.repositories.diagnosis_repository import DiagnosisRepository
 from lam.infrastructure.repositories.ledger_repository import (
     IngestionStatus,
     LedgerRepository,
@@ -18,6 +20,8 @@ class EventIngestionService:
         self.session = session
         self.ledger_repo = LedgerRepository(session)
         self.state_repo = StateRepository(session)
+        self.diag_repo = DiagnosisRepository(session)
+        self.diag_engine = DiagnosisEngine()
 
     async def ingest_event(
         self, request: EventIngestRequest, sec: SecurityContext
@@ -25,10 +29,10 @@ class EventIngestionService:
         """Processes and records an incoming learning event transactionally.
 
         Guarantees:
-        - Atomic ledger record and learner state update within a single transaction.
+        - Atomic ledger record, state update, and diagnosis within one transaction.
         - Full rollback on failure.
         - Strict idempotency against duplicate event submissions.
-        - Concurrency safety with row-level locks on state updates.
+        - Concurrency safety with row-level locks on state updates and diagnosis.
         - Deterministic BKT mastery transitions for eligible unassisted observations.
         - Assisted attempts and missing signals strictly bypass BKT transitions.
         """
@@ -80,7 +84,7 @@ class EventIngestionService:
                     message="Event already ingested; no state changes applied.",
                 )
 
-            # 2. Update Learner State for each referenced concept atomically with row locks
+            # 2. Update Learner State & Misconception Hypotheses for each concept with row locks
             for concept_id in domain_event.concept_ids:
                 await self.state_repo.record_event_state_transition(
                     tenant_id=tenant_id,
@@ -89,7 +93,25 @@ class EventIngestionService:
                     event=domain_event,
                 )
 
-            # Atomic commit of ledger event and learner states
+                # Evaluate misconception diagnosis hypotheses
+                existing_hypotheses = await self.diag_repo.get_hypotheses(
+                    tenant_id=tenant_id,
+                    student_id=domain_event.student_id,
+                    concept_id=concept_id,
+                    active_only=True,
+                    for_update=True,
+                )
+                diag_result = self.diag_engine.evaluate_observation(
+                    existing_hypotheses=existing_hypotheses,
+                    event=domain_event,
+                    concept_id=concept_id,
+                )
+                if diag_result.evaluated:
+                    for hypo in diag_result.hypotheses_updated:
+                        audit_entry = hypo.audit_trail[-1] if hypo.audit_trail else None
+                        await self.diag_repo.save_hypothesis(tenant_id, hypo, audit_entry)
+
+            # Atomic commit of ledger event, learner states, and misconception hypotheses
             await self.session.commit()
 
             return EventIngestResponse(

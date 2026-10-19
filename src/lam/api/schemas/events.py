@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import AliasChoices, BaseModel, Field, field_validator
 
 from lam.domain.events.models import AssessmentMode, EventProvenance, EventType
 
@@ -21,7 +21,11 @@ class EventIngestRequest(BaseModel):
     attempt_number: int | None = Field(default=None, ge=1)
     assistance_level: int | None = Field(default=None, ge=0, le=8)
     hints_used: int | None = Field(default=None, ge=0)
-    response_time_ms: int | None = Field(default=None, ge=0)
+    response_time_ms: int | None = Field(
+        default=None,
+        ge=0,
+        validation_alias=AliasChoices("response_time_ms", "duration_ms", "ms"),
+    )
     self_reported_confidence: float | None = Field(default=None, ge=0.0, le=1.0)
     strategy_id: str | None = None
     intervention_id: str | None = None

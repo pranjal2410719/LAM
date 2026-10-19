@@ -83,6 +83,10 @@ async def test_concurrent_duplicate_event_submissions_race(pg_client: AsyncClien
         "event_type": "attempt",
         "correctness": True,
         "assistance_level": 0,
+        "provenance": {
+            "judgment_source": "answer_key",
+            "status": "verified",
+        },
     }
 
     # Dispatch 10 identical requests simultaneously
@@ -124,6 +128,10 @@ async def test_concurrent_distinct_events_for_same_concept(pg_client: AsyncClien
             "event_type": "attempt",
             "correctness": True,
             "assistance_level": 0,
+            "provenance": {
+                "judgment_source": "answer_key",
+                "status": "verified",
+            },
         }
 
     # Send 5 distinct events concurrently

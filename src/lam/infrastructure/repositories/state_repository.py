@@ -8,7 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from lam.domain.events.models import LearningEvent
 from lam.domain.learner_state.models import LearnerConceptState
-from lam.domain.mastery.bkt import BKTEngine, compute_operational_uncertainty
+from lam.domain.mastery.bkt import BKTEngine
+from lam.domain.mastery.state_transition import apply_learning_event_transition
 from lam.infrastructure.database.models import LearnerStateModel
 
 
@@ -64,11 +65,13 @@ class StateRepository:
         student_id: str,
         concept_id: str,
         event: LearningEvent,
+        bkt_engine: BKTEngine | None = None,
     ) -> LearnerConceptState:
         """Atomically applies a learning event to the learner concept state.
 
         Uses PostgreSQL row-level locks (with_for_update) and savepoint retries to ensure
         strictly serializable, race-safe state updates under high concurrency.
+        Delegates cognitive mastery and evidence rules to the domain layer.
         """
         stmt = (
             select(LearnerStateModel)
@@ -83,55 +86,35 @@ class StateRepository:
         model = res.scalar_one_or_none()
 
         now = datetime.now(UTC)
-        is_assisted = (event.assistance_level is not None and event.assistance_level > 0) or (
-            event.hints_used is not None and event.hints_used > 0
+        current_state = LearnerConceptState.model_validate(model) if model else None
+
+        updated_state, _, _ = apply_learning_event_transition(
+            current_state=current_state,
+            event=event,
+            concept_id=concept_id,
+            bkt_engine=bkt_engine,
+            transition_time=now,
         )
 
-        bkt = BKTEngine()
-
         if not model:
-            # Initial state values
-            initial_indep_mastery = 0.0
-            initial_assisted_perf = 0.0
-            consec_success = 0
-            indep_count = 0
-            assisted_count = 0
-
-            if is_assisted:
-                assisted_count = 1
-                if event.correctness is True:
-                    initial_assisted_perf = 0.1
-            else:
-                if event.correctness is not None:
-                    indep_count = 1
-                    if event.correctness is True:
-                        consec_success = 1
-                    bkt_res = bkt.update(
-                        prior=bkt.params.p_l0,
-                        correctness=event.correctness,
-                        is_assisted=False,
-                    )
-                    initial_indep_mastery = bkt_res.posterior_mastery
-
-            initial_uncertainty = compute_operational_uncertainty(indep_count)
-
             model = LearnerStateModel(
                 tenant_id=tenant_id,
                 student_id=student_id,
                 concept_id=concept_id,
-                concept_mastery=initial_indep_mastery,
-                independent_mastery=initial_indep_mastery,
-                assisted_performance=initial_assisted_perf,
-                uncertainty=initial_uncertainty,
-                total_events_count=1,
-                independent_attempts_count=indep_count,
-                assisted_attempts_count=assisted_count,
-                consecutive_independent_successes=consec_success,
-                prerequisite_readiness=None,
-                retention_strength=None,
-                last_practiced_at=now,
-                state_version=1,
-                last_event_id=event.event_id,
+                concept_mastery=updated_state.concept_mastery,
+                independent_mastery=updated_state.independent_mastery,
+                assisted_performance=updated_state.assisted_performance,
+                uncertainty=updated_state.uncertainty,
+                total_events_count=updated_state.total_events_count,
+                independent_attempts_count=updated_state.independent_attempts_count,
+                assisted_attempts_count=updated_state.assisted_attempts_count,
+                consecutive_independent_successes=updated_state.consecutive_independent_successes,
+                prerequisite_readiness=updated_state.prerequisite_readiness,
+                retention_strength=updated_state.retention_strength,
+                last_practiced_at=updated_state.last_practiced_at,
+                state_version=updated_state.state_version,
+                last_event_id=updated_state.last_event_id,
+                bkt_parameter_version=updated_state.bkt_parameter_version,
                 created_at=now,
                 updated_at=now,
             )
@@ -144,40 +127,31 @@ class StateRepository:
                 # Concurrent race created the row first: re-fetch with row lock
                 res = await self.session.execute(stmt)
                 model = res.scalar_one()
+                current_state = LearnerConceptState.model_validate(model)
+                updated_state, _, _ = apply_learning_event_transition(
+                    current_state=current_state,
+                    event=event,
+                    concept_id=concept_id,
+                    bkt_engine=bkt_engine,
+                    transition_time=now,
+                )
 
-        # Apply state transition to existing/locked model
-        model.total_events_count += 1
-        model.last_practiced_at = now
-        model.last_event_id = event.event_id
-        model.state_version += 1
+        # Apply domain state transition to existing/locked model
+        model.concept_mastery = updated_state.concept_mastery
+        model.independent_mastery = updated_state.independent_mastery
+        model.assisted_performance = updated_state.assisted_performance
+        model.uncertainty = updated_state.uncertainty
+        model.total_events_count = updated_state.total_events_count
+        model.independent_attempts_count = updated_state.independent_attempts_count
+        model.assisted_attempts_count = updated_state.assisted_attempts_count
+        model.consecutive_independent_successes = updated_state.consecutive_independent_successes
+        model.prerequisite_readiness = updated_state.prerequisite_readiness
+        model.retention_strength = updated_state.retention_strength
+        model.last_practiced_at = updated_state.last_practiced_at
+        model.last_event_id = updated_state.last_event_id
+        model.bkt_parameter_version = updated_state.bkt_parameter_version
+        model.state_version = updated_state.state_version
         model.updated_at = now
-
-        if is_assisted:
-            model.assisted_attempts_count += 1
-            if event.correctness is True:
-                model.assisted_performance = min(1.0, model.assisted_performance + 0.1)
-        else:
-            if event.correctness is not None:
-                model.independent_attempts_count += 1
-                if event.correctness is True:
-                    model.consecutive_independent_successes += 1
-                else:
-                    model.consecutive_independent_successes = 0
-
-                prior = (
-                    model.independent_mastery
-                    if model.independent_attempts_count > 1
-                    else bkt.params.p_l0
-                )
-                bkt_res = bkt.update(
-                    prior=prior,
-                    correctness=event.correctness,
-                    is_assisted=False,
-                )
-                model.independent_mastery = bkt_res.posterior_mastery
-                model.concept_mastery = bkt_res.posterior_mastery
-
-        model.uncertainty = compute_operational_uncertainty(model.independent_attempts_count)
 
         await self.session.flush()
         return LearnerConceptState.model_validate(model)
@@ -218,6 +192,7 @@ class StateRepository:
                 last_practiced_at=state.last_practiced_at,
                 state_version=state.state_version,
                 last_event_id=state.last_event_id,
+                bkt_parameter_version=state.bkt_parameter_version,
                 created_at=now,
                 updated_at=now,
             )
@@ -245,6 +220,7 @@ class StateRepository:
         model.prerequisite_readiness = state.prerequisite_readiness
         model.retention_strength = state.retention_strength
         model.last_practiced_at = state.last_practiced_at
+        model.bkt_parameter_version = state.bkt_parameter_version
         model.state_version = model.state_version + 1
         model.last_event_id = state.last_event_id
         model.updated_at = now

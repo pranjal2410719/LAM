@@ -43,6 +43,7 @@ async def get_learner_state(
             last_practiced_at=s.last_practiced_at,
             state_version=s.state_version,
             last_event_id=s.last_event_id,
+            bkt_parameter_version=s.bkt_parameter_version,
             updated_at=s.updated_at,
         )
         for s in states
@@ -91,5 +92,6 @@ async def get_learner_concept_state(
         last_practiced_at=state.last_practiced_at,
         state_version=state.state_version,
         last_event_id=state.last_event_id,
+        bkt_parameter_version=state.bkt_parameter_version,
         updated_at=state.updated_at,
     )

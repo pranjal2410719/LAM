@@ -20,6 +20,7 @@ class ConceptStateDTO(BaseModel):
     last_practiced_at: datetime | None = None
     state_version: int = Field(..., ge=1)
     last_event_id: str | None = None
+    bkt_parameter_version: str | None = None
     updated_at: datetime
 
 

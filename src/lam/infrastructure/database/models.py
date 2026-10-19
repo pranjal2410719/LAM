@@ -81,8 +81,8 @@ class LearnerStateModel(Base):
     student_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
     concept_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
 
-    concept_mastery: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
-    independent_mastery: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    concept_mastery: Mapped[float] = mapped_column(Float, default=0.10, nullable=False)
+    independent_mastery: Mapped[float] = mapped_column(Float, default=0.10, nullable=False)
     assisted_performance: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     uncertainty: Mapped[float] = mapped_column(Float, default=1.0, nullable=False)
 
@@ -101,6 +101,7 @@ class LearnerStateModel(Base):
 
     state_version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     last_event_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    bkt_parameter_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -116,4 +117,72 @@ class LearnerStateModel(Base):
 
     __table_args__ = (
         UniqueConstraint("tenant_id", "student_id", "concept_id", name="uq_tenant_student_concept"),
+    )
+
+
+class MisconceptionHypothesisModel(Base):
+    """Persistent storage for diagnostic misconception hypotheses.
+
+    Tracks active and historical candidate or confirmed misconceptions
+    per student per concept.
+    """
+
+    __tablename__ = "misconception_hypotheses"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    hypothesis_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    tenant_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    student_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    concept_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+
+    category: Mapped[str] = mapped_column(String(64), nullable=False)
+    # Lifecycle: open, confirmed, revised, retired
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    confidence: Mapped[float] = mapped_column(Float, nullable=False)
+
+    supporting_evidence_ids: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    contradictory_evidence_ids: Mapped[list[str]] = mapped_column(
+        JSON, default=list, nullable=False
+    )
+
+    state_version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        nullable=False,
+    )
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "hypothesis_id", name="uq_tenant_hypothesis_id"),
+        Index("ix_hypo_tenant_student_concept", "tenant_id", "student_id", "concept_id"),
+    )
+
+
+class HypothesisAuditEntryModel(Base):
+    """Append-only audit trail recording every state and confidence transition."""
+
+    __tablename__ = "hypothesis_audit_entries"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    tenant_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    hypothesis_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    event_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+
+    from_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    to_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    confidence_delta: Mapped[float] = mapped_column(Float, nullable=False)
+    new_confidence: Mapped[float] = mapped_column(Float, nullable=False)
+    rationale: Mapped[str] = mapped_column(String(512), nullable=False)
+
+    timestamp: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        nullable=False,
     )

@@ -7,7 +7,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-from lam.api.routes import events, health, state
+from lam.api.routes import curriculum, events, health, recommendations, reviews, state
 from lam.api.schemas.errors import ErrorPayload, ErrorResponse
 from lam.infrastructure.config import settings
 from lam.infrastructure.database.session import verify_db_connection
@@ -52,7 +52,7 @@ async def validation_exception_handler(
         )
     )
     return JSONResponse(
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         content=error_payload.model_dump(),
     )
 
@@ -61,6 +61,9 @@ async def validation_exception_handler(
 app.include_router(health.router)
 app.include_router(events.router)
 app.include_router(state.router)
+app.include_router(recommendations.router)
+app.include_router(reviews.router)
+app.include_router(curriculum.router)
 
 
 @app.get("/")
