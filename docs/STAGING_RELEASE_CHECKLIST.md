@@ -3,7 +3,7 @@
 **Environment:** Qrie Staging (`staging-lam.qrie.internal` / containerized service)  
 **Target Milestone:** M2 (Closed-Loop Cognitive Core with Qrie Staging)  
 **Date:** 2026-10-19  
-**Status:** `READY FOR STAGING REVIEW`  
+**Status:** `STAGING UNVERIFIED / BLOCKED (Awaiting Staging Infrastructure Provisioning; Core Service Verified Locally)`  
 
 ---
 
@@ -11,20 +11,21 @@
 
 | Item | Requirement | Verification Command / Check | Status |
 |:---|:---|:---|:---:|
-| **JWT Secret** | Production/Staging secret must NEVER use dev default; minimum 32 random characters (`openssl rand -hex 32`). | `Settings.validate_production_security()` raises `RuntimeError` if insecure. | `VERIFIED` |
-| **Database Credentials** | Staging PostgreSQL 16 credentials managed via environment variables (`DATABASE_URL`). Non-root database user. | Check `.env.staging` (excluded from version control). | `VERIFIED` |
-| **Tenant Binding** | Token tenant claim `tenant_id` must match `X-Tenant-ID` header; cross-tenant requests must return 403. | `tests/security/test_tenant_isolation.py` (7/7 passed). | `VERIFIED` |
-| **CORS Policy** | Restricted strictly to Qrie staging domains (`https://staging.qrie.ai`). | Configured in FastAPI middleware. | `VERIFIED` |
+| **JWT Secret Validation** | Production/Staging secret must NEVER use dev default; minimum 32 random characters (`openssl rand -hex 32`). | `Settings.validate_production_security()` raises `RuntimeError` if insecure. Tested in `test_config_security.py`. | `UNIT_TESTED / CODE_VERIFIED` |
+| **Staging Secret Generation** | Strong 32+ char secret generated and stored in staging secret manager. | Check staging secret vault / `.env.staging` (excluded from version control). | `PENDING_INFRASTRUCTURE` |
+| **Database Credentials** | Staging PostgreSQL 16 provisioned; dedicated non-root credentials configured via `DATABASE_URL`. | Check `.env.staging` and database connectivity. | `PENDING_INFRASTRUCTURE` |
+| **Tenant Binding** | Token tenant claim `tenant_id` must match `X-Tenant-ID` header; cross-tenant requests must return 403. | `tests/security/test_tenant_isolation.py` (7/7 passed). | `INTEGRATION_TESTED` |
+| **CORS Policy** | Restricted strictly to Qrie staging domains (`https://staging.qrie.ai`). | Configured in FastAPI middleware; DNS routing pending. | `PENDING_DNS` |
 
 ---
 
 ## 2. Database Migrations & Rollback Procedures
 
-| Migration ID | Description | Transactional | Upgrade Verification | Downgrade Verification | Status |
+| Migration ID | Description | Transactional | Upgrade Verification (Local Postgres 16) | Downgrade Verification (Local Postgres 16) | Staging Deployment Status |
 |:---|:---|:---:|:---:|:---:|:---:|
-| `6ed18e85f377` | Baseline schema: `learning_events` and `learner_states` | Yes | `alembic upgrade 6ed18e85f377` | Clean | `VERIFIED` |
-| `435e371938d3` | BKT parameter version: add `bkt_parameter_version` column | Yes | `alembic upgrade 435e371938d3` | Clean | `VERIFIED` |
-| `a78f20436d91` | Misconception persistence: `misconception_hypotheses` and `hypothesis_audit_entries` | Yes | `alembic upgrade a78f20436d91` | Clean | `VERIFIED` |
+| `6ed18e85f377` | Baseline schema: `learning_events` and `learner_states` | Yes | `alembic upgrade 6ed18e85f377` (Clean) | `alembic downgrade base` (Clean) | `PENDING_DEPLOYMENT` |
+| `435e371938d3` | BKT parameter version: add `bkt_parameter_version` column | Yes | `alembic upgrade 435e371938d3` (Clean) | `alembic downgrade 6ed18e85f377` (Clean) | `PENDING_DEPLOYMENT` |
+| `a78f20436d91` | Misconception persistence: `misconception_hypotheses` and `hypothesis_audit_entries` | Yes | `alembic upgrade a78f20436d91` (Clean) | `alembic downgrade 435e371938d3` (Clean) | `PENDING_DEPLOYMENT` |
 
 ### Pre-Deployment Migration Verification Command:
 ```bash
@@ -66,20 +67,23 @@ DATABASE_URL="postgresql+asyncpg://..." alembic downgrade -1
 
 ## 5. Staging Smoke Test Suite
 
+* **Local Verification Status:** `VERIFIED` against local PostgreSQL 16 container.
+* **Remote Staging Status:** `PENDING_INFRASTRUCTURE` (to be executed immediately upon container deployment at `staging-lam.qrie.internal`).
+
 Execute the automated smoke verification against the running staging container:
 ```bash
 # 1. Verify health
-curl -s http://localhost:8000/health/ready | jq .
+curl -s http://staging-lam.qrie.internal:8000/health/ready | jq .
 
 # 2. Ingest test event
-curl -s -X POST http://localhost:8000/v1/events \
+curl -s -X POST http://staging-lam.qrie.internal:8000/v1/events \
   -H "Authorization: Bearer $STAGING_JWT" \
   -H "X-Tenant-ID: tenant_staging" \
   -H "Content-Type: application/json" \
   -d '{"event_id":"smoke_01","student_id":"stu_smoke","session_id":"sess_smoke","concept_ids":["math.fractions.addition"],"item_id":"i1","timestamp":"2026-10-19T10:00:00Z","event_type":"attempt","correctness":true,"assistance_level":0,"provenance":{"judgment_source":"answer_key","status":"verified","verifier_reliability":"authoritative","independently_produced":true}}' | jq .
 
 # 3. Query recommendation
-curl -s -X POST http://localhost:8000/v1/recommendations \
+curl -s -X POST http://staging-lam.qrie.internal:8000/v1/recommendations \
   -H "Authorization: Bearer $STAGING_JWT" \
   -H "X-Tenant-ID: tenant_staging" \
   -H "Content-Type: application/json" \
