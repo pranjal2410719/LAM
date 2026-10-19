@@ -42,9 +42,9 @@
 ## 3. Latest Verification Evidence
 
 - **Linting & Code Quality:** `ruff check .` $\rightarrow$ **0 errors** (PASSED)
-- **Formatting:** `ruff format --check .` $\rightarrow$ **83 files clean** (PASSED)
-- **Static Type Checking:** `mypy --strict src/lam tests` $\rightarrow$ **0 issues in 66 source files** (PASSED)
-- **Automated Test Suite:** `pytest -v` $\rightarrow$ **130 passed in 4.55s** (PASSED)
+- **Formatting:** `ruff format --check .` $\rightarrow$ **86 files clean** (PASSED)
+- **Static Type Checking:** `mypy --strict src/lam tests` $\rightarrow$ **0 issues in 68 source files** (PASSED)
+- **Automated Test Suite:** `pytest -v` $\rightarrow$ **134 passed in 4.69s** (PASSED)
   - `tests/unit/test_bkt.py`: 7/7 passed
   - `tests/unit/test_curriculum_dag.py`: 13/13 passed (cycle detection, multi-hop cycles, disconnected components, topological sort, blocking prerequisites)
   - `tests/unit/test_assistance_escalation.py`: 6/6 passed (safety stop at $\ge 3$ failures, escalation ladder, fading ladder, reset, audit trail)
@@ -60,6 +60,7 @@
   - `tests/integration/test_reviews_api.py`: 3/3 passed (auth rejection, tenant isolation, priority filtering)
   - `tests/integration/test_curriculum_api.py`: 4/4 passed (DAG validation, cycle rejection with 422, prerequisite blocking resolution, auth protection)
   - `tests/integration/test_qrie_contract_and_boundary.py`: 5/5 passed (field aliases, automatic hypothesis confirmation, assisted isolation, prerequisite blocking, safety stops, unknown learner fallback, reviews)
+  - `tests/integration/test_qrie_resilience_and_recovery.py`: 4/4 passed (client timeout/bounded retry simulation, safe fallback without mastery fabrication, outbox recovery and replay idempotency, 409 conflict rejection)
   - `tests/integration/test_diagnosis_persistence.py`: 4/4 passed against live PostgreSQL 16 (upsert, audit accumulation, retirement, concurrency locking)
   - `tests/integration/test_qrie_end_to_end_loop.py`: 1/1 passed (synthetic closed-loop lifecycle covering event $\rightarrow$ candidate hypothesis $\rightarrow$ repeated error $\rightarrow$ confirmed hypothesis $\rightarrow$ Tier 3 diagnostic probe $\rightarrow$ assisted isolation $\rightarrow$ unassisted success $\rightarrow$ hypothesis retirement $\rightarrow$ curriculum progression $\rightarrow$ 3 failures safety stop)
   - `tests/integration/test_postgres_integration.py`: 4/4 passed against live PostgreSQL 16
