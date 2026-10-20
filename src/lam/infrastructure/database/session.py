@@ -2,6 +2,7 @@
 
 import os
 from collections.abc import AsyncGenerator
+from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
@@ -18,11 +19,26 @@ DATABASE_URL = os.getenv(
     settings.database_url,
 )
 
-engine: AsyncEngine = create_async_engine(
-    DATABASE_URL,
-    echo=False,
-    future=True,
-)
+
+def create_engine_for_url(url: str) -> AsyncEngine:
+    """Creates a configured AsyncEngine with pool pre-ping and tuning."""
+    engine_kwargs: dict[str, Any] = {
+        "echo": False,
+        "future": True,
+        "pool_pre_ping": True,
+    }
+    if "postgresql" in url:
+        engine_kwargs.update(
+            {
+                "pool_size": settings.db_pool_size,
+                "max_overflow": settings.db_max_overflow,
+                "pool_recycle": settings.db_pool_recycle,
+            }
+        )
+    return create_async_engine(url, **engine_kwargs)
+
+
+engine: AsyncEngine = create_engine_for_url(DATABASE_URL)
 
 async_session_factory = async_sessionmaker(
     bind=engine,

@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.5.2] - 2026-10-20 (Deployment-Ready Hardening, Tracing, Health Probes & Operational Tuning)
+
+### Added
+- **Multi-Stage Production Containerization (`Dockerfile`, `.dockerignore`, `docker-compose.yml`):**
+  - Added non-root unprivileged service runner (`lamuser`, uid 10001) based on `python:3.11-slim-bookworm`.
+  - Deterministic dependency resolution via `uv.lock`.
+  - Local staging stack with `postgres:16-alpine` and container health checks.
+- **Request Tracing & Correlation Middleware (`src/lam/main.py`):**
+  - Added ASGI correlation middleware assigning `X-Request-ID` (`req_<uuid>`) and propagating to response headers and request state.
+  - Added structured HTTP access logging (method, path, status, duration_ms, request_id).
+- **Safe Unhandled Exception Handler (`src/lam/main.py`):**
+  - Catches unhandled errors and returns standardized RFC 7807 problem details with correlated `request_id`, suppressing raw internal tracebacks.
+- **Database Connection Pool Tuning (`src/lam/infrastructure/database/session.py`):**
+  - Enabled `pool_pre_ping=True`, `pool_size`, `max_overflow`, and `pool_recycle=1800` for PostgreSQL.
+  - Added graceful engine disposal hook on FastAPI lifespan shutdown.
+- **Reviews API Query Filtering (`src/lam/api/routes/reviews.py`):**
+  - Added `priority` and `limit` query parameters with priority alias mapping matching contract specifications.
+- **Health Probes Hardening & Test Suite (`src/lam/api/routes/health.py`, `tests/unit/test_health_api.py`):**
+  - Hardened `/health/ready` to return HTTP 503 on database disconnect with sanitized status preventing information leakage.
+  - Added automated test suite for liveness, readiness, DB failure handling, and header tracing.
+
+### Verification
+- Full test suite: **142/142 tests passed in 5.88s**.
+- Static type checking: `mypy --strict src/lam tests` passed with **0 issues in 71 source files**.
+- Linting and formatting: `ruff check .` (0 errors) and `ruff format --check .` (89 files clean).
+- Live PostgreSQL 16 migrations and concurrency: 12/12 integration tests passed.
+
+---
+
 ## [0.5.1] - 2026-10-19 (M2 Release Candidate Resilience & Contract Verification)
 
 ### Added

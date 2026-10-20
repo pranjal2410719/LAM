@@ -95,3 +95,23 @@ async def test_reviews_endpoint_returns_scheduled_concepts(
     assert due_item["concept_id"] == concept_id
     assert due_item["is_due"] is True
     assert due_item["priority"] in ("due_for_review", "critical_overdue")
+
+    # Priority filtering tests
+    resp_filtered = await async_client.get(
+        f"/v1/learners/{student_id}/reviews?priority=overdue", headers=headers
+    )
+    assert resp_filtered.status_code == 200
+    assert resp_filtered.json()["reviews_due_count"] == 1
+
+    resp_upcoming = await async_client.get(
+        f"/v1/learners/{student_id}/reviews?priority=stable", headers=headers
+    )
+    assert resp_upcoming.status_code == 200
+    assert resp_upcoming.json()["reviews_due_count"] == 0
+
+    # Limit parameter test
+    resp_limit = await async_client.get(
+        f"/v1/learners/{student_id}/reviews?limit=1", headers=headers
+    )
+    assert resp_limit.status_code == 200
+    assert len(resp_limit.json()["reviews_due"]) <= 1

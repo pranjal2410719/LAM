@@ -28,6 +28,14 @@ class Settings(BaseSettings):
 
     # Database connection
     database_url: str = "sqlite+aiosqlite:///./lam_dev.db"
+    db_pool_size: int = 10
+    db_max_overflow: int = 20
+    db_pool_recycle: int = 1800
+
+    # Service Server Settings
+    host: str = "0.0.0.0"
+    port: int = 8000
+    log_level: str = "INFO"
 
     # JWT Authentication & Authorization
     jwt_secret_key: str = INSECURE_DEFAULT_DEV_SECRET
