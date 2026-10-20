@@ -18,6 +18,7 @@
 | **Assistance Escalation Tests** | `pytest tests/unit/test_assistance_escalation.py -v` | Pure Python state machine | 6 | 6 | 0 | `PASSED` | Tier 1 safety stop on $\ge 3$ consecutive failures, 2 failures escalation to Worked Example, single failure scaffolding step-up, fading ladder after 2 consecutive assisted successes, full reset to Level 0 on independent success, audit trail recording. |
 | **Spaced Retrieval Tests** | `pytest tests/unit/test_spaced_retrieval.py -v` | Pure Python scheduler | 5 | 5 | 0 | `PASSED` | Interval progression (1d, 3d, 7d, 14d, 30d, 60d), assisted attempt conservative scaling, exponential retention decay $R(t)=\exp(-\Delta t / S)$, priority classification (overdue, due_soon, maintained), zero-attempt concept exclusion. |
 | **Evidence Eligibility Tests** | `pytest tests/unit/test_evidence_eligibility.py -v` | Evidence rules (D-03) | 15 | 15 | 0 | `PASSED` | Verifier sources, provisional status, model-graded provenance, low reliability, assistance flags, missing correctness. |
+| **Health & Tracing Tests** | `pytest tests/unit/test_health_api.py -v` | Probes & Tracing | 4 | 4 | 0 | `PASSED` | Liveness 200, readiness 200, DB failure safe 503 without information leakage, X-Request-ID echo. |
 | **Learner State Transition Tests** | `pytest tests/unit/test_learner_state_transition.py -v` | Initial state & BKT transitions | 7 | 7 | 0 | `PASSED` | Initial prior 0.10 semantics, unassisted updates, assisted isolation, provisional/unverified isolation, parameter versioning. |
 | **Misconception Diagnosis Tests** | `pytest tests/unit/test_misconception_diagnosis.py -v` | Competing hypothesis engine (D-04) | 10 | 10 | 0 | `PASSED` | Missing correctness bypass, unverified/provisional rejection, single error candidate opening, repeated independent error confirmation, contradictory evidence retirement, scaffolding discounts, deduplication, competing hypotheses, determinism. |
 | **Recommendation Engine Tests** | `pytest tests/unit/test_recommendation_engine.py -v` | Deterministic decision engine (D-06) | 16 | 16 | 0 | `PASSED` | Fallback, 7 priority tiers, confirmed vs open candidate misconception distinction, retired hypothesis bypass, conflicting priorities, tie-breaking, determinism. |
@@ -25,7 +26,7 @@
 | **Unit Event Validation**| `pytest tests/unit/test_events_validation.py -v` | Domain event schema | 3 | 3 | 0 | `PASSED` | Valid event, non-coercion, bounds checking. |
 | **Event Ingestion Integration** | `pytest tests/integration/test_event_ingestion.py -v` | Ingestion, BKT & provenance | 5 | 5 | 0 | `PASSED` | Ingestion, idempotency, assisted vs unassisted, end-to-end BKT trajectory matching D-02, unverified/provisional provenance handling. |
 | **Recommendation API Integration** | `pytest tests/integration/test_recommendation_api.py -v` | `POST /v1/recommendations` | 6 | 6 | 0 | `PASSED` | Auth rejection, unknown student fallback, end-to-end event-to-recommendation flow, prerequisite blocking, safety stop, confirmed vs open misconception gating. |
-| **Reviews API Integration** | `pytest tests/integration/test_reviews_api.py -v` | `GET /v1/learners/{id}/reviews` | 3 | 3 | 0 | `PASSED` | Auth rejection, multi-tenant isolation, priority filter (`overdue`, `due_soon`). |
+| **Reviews API Integration** | `pytest tests/integration/test_reviews_api.py -v` | `GET /v1/learners/{id}/reviews` | 3 | 3 | 0 | `PASSED` | Auth rejection, multi-tenant isolation, priority filter (`overdue`, `due_soon`), limit enforcement. |
 | **Curriculum API Integration** | `pytest tests/integration/test_curriculum_api.py -v` | Curriculum DAG endpoints | 4 | 4 | 0 | `PASSED` | DAG validation, cycle detection (422), prerequisite blocking calculation, auth rejection. |
 | **Qrie Contract & Boundary** | `pytest tests/integration/test_qrie_contract_and_boundary.py -v` | Application boundary contract | 5 | 5 | 0 | `PASSED` | Unauthorized/cross-tenant rejection, payload aliases (duration_ms), auto misconception confirmation & recommendation, assisted isolation, safety stops, reviews. |
 | **Qrie Resilience & Recovery** | `pytest tests/integration/test_qrie_resilience_and_recovery.py -v` | Production LamRelayClient resilience | 8 | 8 | 0 | `PASSED` | 503 retry recovery, fast-fail 409/422/401, timeout limits, persistent 503 exhaustion, safe fallback without mastery guessing, outbox replay zero drift, conflict 409 rejection, cross-tenant 403 auth error. |
@@ -36,7 +37,7 @@
 | **Security & Auth Tests** | `pytest tests/security/ -v` | Cryptographic Auth & Isolation| 7 | 7 | 0 | `PASSED` | Forged token, expired token, cross-tenant header mismatch (403), admin string prefix rejection, verified admin role access, tenant data isolation. |
 | **Database Migrations**| `DATABASE_URL=... alembic upgrade head` | PostgreSQL 16 | 3 revs | 3 | 0 | `PASSED` | Transactional DDL upgrade and downgrade verified on PostgreSQL 16 (`6ed18e85f377`, `435e371938d3`, and `a78f20436d91`). |
 
-**Total passing test cases: 138 / 138 passed in 5.02s.**
+**Total passing test cases: 142 / 142 passed in 5.88s.**
 
 ---
 

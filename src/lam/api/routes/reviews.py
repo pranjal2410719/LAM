@@ -1,6 +1,6 @@
 """Spaced retrieval review API endpoints."""
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from lam.api.schemas.reviews import (
@@ -21,6 +21,19 @@ router = APIRouter(prefix="/v1/learners", tags=["Spaced Retrieval"])
 @router.get("/{learner_id}/reviews", response_model=ReviewsDueResponse)
 async def get_learner_reviews(
     learner_id: str,
+    priority: str | None = Query(
+        default=None,
+        description=(
+            "Filter reviews by priority: overdue, critical_overdue, "
+            "due_for_review, due_soon, upcoming, stable, maintained"
+        ),
+    ),
+    limit: int = Query(
+        default=50,
+        ge=1,
+        le=200,
+        description="Maximum number of review items to return (1-200, default 50)",
+    ),
     sec: SecurityContext = Depends(get_security_context),
     session: AsyncSession = Depends(get_db_session),
 ) -> ReviewsDueResponse:
@@ -71,12 +84,33 @@ async def get_learner_reviews(
         for r in schedule_result.upcoming_reviews
     ]
 
+    # Filter by priority if requested
+    if priority:
+        target_p = priority.lower().strip()
+        priority_map: dict[str, tuple[str, ...]] = {
+            "overdue": ("critical_overdue", "due_for_review"),
+            "critical_overdue": ("critical_overdue",),
+            "due_for_review": ("due_for_review",),
+            "due_soon": ("due_for_review",),
+            "upcoming": ("upcoming",),
+            "stable": ("stable",),
+            "maintained": ("stable",),
+        }
+        allowed = priority_map.get(target_p, (target_p,))
+        reviews_due_dto = [r for r in reviews_due_dto if r.priority in allowed]
+        upcoming_dto = [r for r in upcoming_dto if r.priority in allowed]
+
+    # Enforce result limit
+    if limit:
+        reviews_due_dto = reviews_due_dto[:limit]
+        upcoming_dto = upcoming_dto[:limit]
+
     return ReviewsDueResponse(
         student_id=learner_id,
         evaluated_at=schedule_result.evaluated_at,
         policy_version=schedule_result.policy_version,
         total_concepts_evaluated=schedule_result.total_concepts_evaluated,
-        reviews_due_count=schedule_result.reviews_due_count,
+        reviews_due_count=len(reviews_due_dto),
         reviews_due=reviews_due_dto,
         upcoming_reviews=upcoming_dto,
     )

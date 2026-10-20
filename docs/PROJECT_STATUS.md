@@ -43,31 +43,33 @@
 ## 3. Latest Verification Evidence
 
 - **Linting & Code Quality:** `ruff check .` $\rightarrow$ **0 errors** (PASSED)
-- **Formatting:** `ruff format --check .` $\rightarrow$ **88 files clean** (PASSED)
-- **Static Type Checking:** `mypy --strict src/lam tests` $\rightarrow$ **0 issues in 70 source files** (PASSED)
-- **Automated Test Suite:** `pytest -v` $\rightarrow$ **138 passed in 5.02s** (PASSED)
+- **Formatting:** `ruff format --check .` $\rightarrow$ **89 files clean** (PASSED)
+- **Static Type Checking:** `mypy --strict src/lam tests` $\rightarrow$ **0 issues in 71 source files** (PASSED)
+- **Automated Test Suite:** `pytest -v` $\rightarrow$ **142 passed in 5.88s** (PASSED)
+  - `tests/unit/test_health_api.py`: 4/4 passed (liveness 200, readiness 200, DB failure safe 503 without exception leakage, X-Request-ID tracing)
   - `tests/unit/test_bkt.py`: 7/7 passed
-  - `tests/unit/test_curriculum_dag.py`: 13/13 passed (cycle detection, multi-hop cycles, disconnected components, topological sort, blocking prerequisites)
-  - `tests/unit/test_assistance_escalation.py`: 6/6 passed (safety stop at $\ge 3$ failures, escalation ladder, fading ladder, reset, audit trail)
-  - `tests/unit/test_spaced_retrieval.py`: 5/5 passed (interval progression, exponential decay, priority classification, zero-attempt exclusion)
-  - `tests/unit/test_evidence_eligibility.py`: 15/15 passed (all trusted sources, low-reliability, provisional provenance, missing provenance, assisted flags, missing correctness, model-graded)
-  - `tests/unit/test_learner_state_transition.py`: 7/7 passed (initial prior 0.10 semantics, unassisted transitions, assisted isolation, missing signal isolation)
-  - `tests/unit/test_misconception_diagnosis.py`: 10/10 passed (single error candidate opening, confirmation thresholds, refutation/retirement, assisted discounts, duplicate event safety, competing hypotheses, determinism)
-  - `tests/unit/test_recommendation_engine.py`: 16/16 passed (fallback, 7 priority tiers, confirmed vs open candidate misconception distinction, conflicting priorities, tie-breaking, determinism)
-  - `tests/unit/test_config_security.py`: 5/5 passed (fail-closed production checks)
-  - `tests/unit/test_events_validation.py`: 3/3 passed (schema validation, non-coercion)
-  - `tests/integration/test_event_ingestion.py`: 5/5 passed (ingestion, idempotency, assisted isolation, BKT trajectory, unverified provenance handling)
-  - `tests/integration/test_recommendation_api.py`: 6/6 passed (auth rejection, unknown student fallback, end-to-end event-to-recommendation flow, prerequisite blocking, safety stop, confirmed vs open candidate misconception)
-  - `tests/integration/test_reviews_api.py`: 3/3 passed (auth rejection, tenant isolation, priority filtering)
-  - `tests/integration/test_curriculum_api.py`: 4/4 passed (DAG validation, cycle rejection with 422, prerequisite blocking resolution, auth protection)
-  - `tests/integration/test_qrie_contract_and_boundary.py`: 5/5 passed (field aliases, automatic hypothesis confirmation, assisted isolation, prerequisite blocking, safety stops, unknown learner fallback, reviews)
-  - `tests/integration/test_qrie_resilience_and_recovery.py`: 8/8 passed (real production LamRelayClient: 503 retry recovery, fast fail 409/422/401, timeout limits, persistent 503 exhaustion, safe fallback without mastery guessing, outbox replay zero drift, conflict 409 rejection, cross-tenant 403 auth error)
-  - `tests/integration/test_diagnosis_persistence.py`: 4/4 passed against live PostgreSQL 16 (upsert, audit accumulation, retirement, concurrency locking)
-  - `tests/integration/test_qrie_end_to_end_loop.py`: 1/1 passed (synthetic closed-loop lifecycle covering event $\rightarrow$ candidate hypothesis $\rightarrow$ repeated error $\rightarrow$ confirmed hypothesis $\rightarrow$ Tier 3 diagnostic probe $\rightarrow$ assisted isolation $\rightarrow$ unassisted success $\rightarrow$ hypothesis retirement $\rightarrow$ curriculum progression $\rightarrow$ 3 failures safety stop)
+  - `tests/unit/test_curriculum_dag.py`: 13/13 passed
+  - `tests/unit/test_assistance_escalation.py`: 6/6 passed
+  - `tests/unit/test_spaced_retrieval.py`: 5/5 passed
+  - `tests/unit/test_evidence_eligibility.py`: 15/15 passed
+  - `tests/unit/test_learner_state_transition.py`: 7/7 passed
+  - `tests/unit/test_misconception_diagnosis.py`: 10/10 passed
+  - `tests/unit/test_recommendation_engine.py`: 16/16 passed
+  - `tests/unit/test_config_security.py`: 5/5 passed
+  - `tests/unit/test_events_validation.py`: 3/3 passed
+  - `tests/integration/test_event_ingestion.py`: 5/5 passed
+  - `tests/integration/test_recommendation_api.py`: 6/6 passed
+  - `tests/integration/test_reviews_api.py`: 3/3 passed (auth rejection, tenant isolation, priority and limit filtering)
+  - `tests/integration/test_curriculum_api.py`: 4/4 passed
+  - `tests/integration/test_qrie_contract_and_boundary.py`: 5/5 passed
+  - `tests/integration/test_qrie_resilience_and_recovery.py`: 8/8 passed
+  - `tests/integration/test_diagnosis_persistence.py`: 4/4 passed against live PostgreSQL 16
+  - `tests/integration/test_qrie_end_to_end_loop.py`: 1/1 passed
   - `tests/integration/test_postgres_integration.py`: 4/4 passed against live PostgreSQL 16
   - `tests/integration/test_postgres_concurrency.py`: 4/4 passed against live PostgreSQL 16
-  - `tests/security/test_tenant_isolation.py`: 7/7 passed (cryptographic JWT verification and tenant boundary enforcement)
+  - `tests/security/test_tenant_isolation.py`: 7/7 passed
 - **Database Migrations on PostgreSQL:** `alembic upgrade head` and `alembic downgrade -1` verified on PostgreSQL 16 $\rightarrow$ **PASSED**
+- **Deployment Artifacts:** Multi-stage production `Dockerfile`, `.dockerignore`, `docker-compose.yml`, health checks, and correlation ID tracing verified. Detailed report in [`docs/LAM_COMPLETION_AUDIT.md`](./LAM_COMPLETION_AUDIT.md).
 
 ---
 

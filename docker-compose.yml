@@ -1,0 +1,46 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: lam-postgres-staging
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: lam_user
+      POSTGRES_PASSWORD: lam_secure_staging_password_change_me
+      POSTGRES_DB: lam_staging_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lam_user -d lam_staging_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  lam-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: lam-api-staging
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://lam_user:lam_secure_staging_password_change_me@postgres:5432/lam_staging_db
+      ENVIRONMENT: production
+      LOG_LEVEL: INFO
+      LAM_JWT_SECRET_KEY: staging_super_secret_jwt_key_at_least_32_characters_long!
+      LAM_JWT_ALGORITHM: HS256
+      LAM_JWT_ISSUER: lam-auth
+      LAM_JWT_AUDIENCE: lam-service
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  postgres_data:

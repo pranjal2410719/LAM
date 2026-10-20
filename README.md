@@ -19,8 +19,9 @@ LAM is an independent, versioned backend service that converts structured studen
   - **M1 Deterministic Learner Model:** Corbett & Anderson BKT engine, authoritative evidence eligibility rules, pure domain state transition engine, persistent misconception hypothesis engine with competing hypothesis evaluation and audit log, deterministic 7-tier recommendation engine.
   - **M2 Closed Loop Engines & Persistence:** Curriculum DAG validator (DFS 3-color cycle detection and Kahn's topological sort), 9-level assistance escalation ladder (Levels 0–8 with Tier 1 safety stop at $\ge 3$ consecutive failures), spaced retrieval forgetting curve scheduler ($R(t)=\exp(-\Delta t / S)$), and persistent misconception storage with PostgreSQL 16 row locking (`a78f20436d91`).
   - **Host Integration Client SDK:** Production `LamRelayClient` in `src/lam/infrastructure/clients/lam_client.py` with explicit connect/read timeouts, exponential backoff with jitter on 502/503/504, fast-fail on 401/403/409/422, outbox sequential replay deduplication, and safe fallback without mastery fabrication.
-  - **Full Quality Gates (100% passing):** `ruff check .` (0 errors), `ruff format --check .` (88 files clean), `mypy --strict src/lam tests` (0 issues across 70 source files), and `pytest -v` (**138 / 138 tests passing** against PostgreSQL 16).
-* **Detailed Status & Roadmap:**
+  - **Full Quality Gates (100% passing):** `ruff check .` (0 errors), `ruff format --check .` (89 files clean), `mypy --strict src/lam tests` (0 issues across 71 source files), and `pytest -v` (**142 / 142 tests passing** against PostgreSQL 16).
+* **Detailed Status & Deployment Runbooks:**
+  - Completion Audit: [`docs/LAM_COMPLETION_AUDIT.md`](./docs/LAM_COMPLETION_AUDIT.md)
   - Current Status: [`docs/PROJECT_STATUS.md`](./docs/PROJECT_STATUS.md)
   - Integration Contract: [`docs/QRIE_INTEGRATION_CONTRACT.md`](./docs/QRIE_INTEGRATION_CONTRACT.md)
   - Staging Checklist: [`docs/STAGING_RELEASE_CHECKLIST.md`](./docs/STAGING_RELEASE_CHECKLIST.md)
@@ -119,7 +120,25 @@ uvicorn lam.main:app --host 0.0.0.0 --port 8000 --reload
 
 ---
 
-## 7. Host Integration Client SDK
+## 7. Containerized Deployment (Docker & Compose)
+
+Build and run using the production multi-stage `Dockerfile`:
+```bash
+# Build the container image
+docker build -t lam-service:latest .
+
+# Run container with environment configuration
+docker run -d -p 8000:8000 --env-file .env.production lam-service:latest
+```
+
+Or spin up the complete local staging stack (PostgreSQL 16 container + LAM service) using Docker Compose:
+```bash
+docker compose up --build
+```
+
+---
+
+## 8. Host Integration Client SDK
 
 Host applications (e.g. Qrie backend relay) interact with LAM using `LamRelayClient` in `src/lam/infrastructure/clients/lam_client.py`:
 
