@@ -19,8 +19,9 @@ LAM is an independent, versioned backend service that converts structured studen
   - **M1 Deterministic Learner Model:** Corbett & Anderson BKT engine, authoritative evidence eligibility rules, pure domain state transition engine, persistent misconception hypothesis engine with competing hypothesis evaluation and audit log, deterministic 7-tier recommendation engine.
   - **M2 Closed Loop Engines & Persistence:** Curriculum DAG validator (DFS 3-color cycle detection and Kahn's topological sort), 9-level assistance escalation ladder (Levels 0–8 with Tier 1 safety stop at $\ge 3$ consecutive failures), spaced retrieval forgetting curve scheduler ($R(t)=\exp(-\Delta t / S)$), and persistent misconception storage with PostgreSQL 16 row locking (`a78f20436d91`).
   - **Host Integration Client SDK:** Production `LamRelayClient` in `src/lam/infrastructure/clients/lam_client.py` with explicit connect/read timeouts, exponential backoff with jitter on 502/503/504, fast-fail on 401/403/409/422, outbox sequential replay deduplication, and safe fallback without mastery fabrication.
-  - **Full Quality Gates (100% passing):** `ruff check .` (0 errors), `ruff format --check .` (89 files clean), `mypy --strict src/lam tests` (0 issues across 71 source files), and `pytest -v` (**142 / 142 tests passing** against PostgreSQL 16).
+  - **Full Quality Gates (100% passing in CI):** `ruff check .` (0 errors), `ruff format --check .` (89 files clean), `mypy --strict src/lam tests` (0 issues across 71 source files), and `pytest -v` (**142 / 142 tests passing** against PostgreSQL 16 in remote CI).
 * **Detailed Status & Deployment Runbooks:**
+  - Day 1 Baseline Audit: [`docs/audits/issue-3-baseline-audit.md`](./docs/audits/issue-3-baseline-audit.md)
   - Completion Audit: [`docs/LAM_COMPLETION_AUDIT.md`](./docs/LAM_COMPLETION_AUDIT.md)
   - Current Status: [`docs/PROJECT_STATUS.md`](./docs/PROJECT_STATUS.md)
   - Integration Contract: [`docs/QRIE_INTEGRATION_CONTRACT.md`](./docs/QRIE_INTEGRATION_CONTRACT.md)
@@ -32,49 +33,197 @@ LAM is an independent, versioned backend service that converts structured studen
 
 ---
 
-## 3. Local Setup & Prerequisites
+## 3. Supported Developer Workflows
 
-### Prerequisites
-- Python 3.11+
-- `uv` (recommended) or `pip` / `poetry`
-- PostgreSQL 15+ (or SQLite for local development/testing)
+LAM supports two distinct, isolated development workflows:
+1. **Workflow A: Local SQLite Development (Zero External Services)** — Ideal for fast local development, unit tests, and lightweight endpoint debugging without running Docker or PostgreSQL.
+2. **Workflow B: Docker Compose Multi-Container Stack (PostgreSQL 16 + LAM Service)** — Ideal for full production simulation, transactional DDL verification, concurrency checks, and running the entire integration test suite.
 
-### Installation
-```bash
-# Clone and enter directory
-cd /home/dev/Desktop/projects/ai-tuitor/lam
+---
 
-# Create virtual environment and install dependencies in editable mode
-uv venv .venv
-source .venv/bin/activate
+### Workflow A: Local SQLite Development (Zero External Services)
+
+#### Prerequisites
+- **Python:** `3.11.x` (`>=3.11, <3.13` supported).
+- **Package Manager:** Astral `uv` (recommended) or standard `pip`.
+
+#### A.1 Setup & Installation
+
+##### Windows (PowerShell)
+```powershell
+# 1. Clone repository and navigate to root
+git clone https://github.com/pranjal2410719/LAM.git
+cd LAM
+
+# 2. Install uv (if not already installed)
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+# 3. Create virtual environment with Python 3.11
+uv venv --python 3.11 .venv
+
+# 4. Activate virtual environment
+.\.venv\Scripts\Activate.ps1
+
+# 5. Install dependencies in editable mode
 uv pip install -e ".[dev]"
 
-# Copy environment configuration
+# 6. Configure local environment for SQLite
+Copy-Item .env.example .env
+```
+
+*Alternative using standard `python -m venv` without `uv`:*
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install -e ".[dev]"
+Copy-Item .env.example .env
+```
+
+##### Linux / macOS (Bash / Zsh)
+```bash
+# 1. Clone repository and navigate to root
+git clone https://github.com/pranjal2410719/LAM.git
+cd LAM
+
+# 2. Install uv (if not already installed)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# 3. Create virtual environment with Python 3.11
+uv venv --python 3.11 .venv
+
+# 4. Activate virtual environment
+source .venv/bin/activate
+
+# 5. Install dependencies in editable mode
+uv pip install -e ".[dev]"
+
+# 6. Configure local environment for SQLite
 cp .env.example .env
 ```
 
----
-
-## 4. Database Migrations
-
-LAM uses Alembic for asynchronous schema migrations:
-
+#### A.2 Database Migrations (Local SQLite)
+By default, `.env` points to `sqlite+aiosqlite:///./lam_dev.db`:
 ```bash
-# Apply migrations to head
 alembic upgrade head
+```
 
-# Rollback migrations to base
-alembic downgrade base
+#### A.3 Run Local Unit & SQLite Tests
+```bash
+# Pure in-memory unit tests (79 tests — executes in seconds)
+pytest tests/unit
 
-# Create a new migration revision
-alembic revision --autogenerate -m "describe_change"
+# Unit + SQLite-backed integration tests (130 tests — zero external services needed)
+pytest tests/unit tests/integration/test_curriculum_api.py tests/integration/test_event_ingestion.py tests/integration/test_recommendation_api.py tests/integration/test_reviews_api.py tests/integration/test_qrie_*.py tests/security
+```
+
+#### A.4 Start Local API & Health Verification
+```bash
+uvicorn lam.main:app --host 0.0.0.0 --port 8000 --reload
+```
+In a separate terminal:
+```bash
+# Verify liveness (returns {"status": "alive"})
+curl -i http://localhost:8000/health/live
+
+# Verify readiness (returns {"status": "ready", "database": "connected"})
+curl -i http://localhost:8000/health/ready
 ```
 
 ---
 
-## 5. Verification & Testing
+### Workflow B: Multi-Container Stack via Docker Compose (PostgreSQL 16)
 
-Every code change must pass all mandatory quality gates:
+The Docker Compose stack starts an isolated PostgreSQL 16 container and the containerized LAM FastAPI service.
+
+#### B.1 Prepare Configuration
+Docker Compose uses `.env.compose` to prevent accidental contamination from local SQLite `.env` files:
+
+##### Windows (PowerShell)
+```powershell
+Copy-Item .env.compose.example .env.compose
+```
+
+##### Linux / macOS (Bash / Zsh)
+```bash
+cp .env.compose.example .env.compose
+```
+
+Edit `.env.compose` to provide your local development secrets:
+- `POSTGRES_PASSWORD`: Required password for the PostgreSQL container.
+- `LAM_JWT_SECRET_KEY`: Required high-entropy JWT secret (minimum 32 characters).
+- `HOST_PORT`: Host port mapping for LAM (defaults to `8000`, e.g. `http://localhost:8000`).
+  *(Note: The container internally always listens on port 8000; `HOST_PORT` controls the external workstation port mapping).*
+- `POSTGRES_HOST_PORT`: Host port mapping for PostgreSQL (defaults to `5432`).
+- `COMPOSE_DATABASE_URL`: *(Optional)* Percent-encoded SQLAlchemy connection string override. Docker Compose variable substitution performs raw string interpolation and does **not** URL-encode characters. If `POSTGRES_PASSWORD` contains URL-reserved characters (e.g. `@`, `:`, `/`, `?`, `#`), the generated URL will cause SQLAlchemy connection parsing errors. In that case, manually construct the percent-encoded URL and set it here (e.g. `COMPOSE_DATABASE_URL=postgresql+asyncpg://lam_user:percent_encoded_password@postgres:5432/lam_db`).
+
+> [!IMPORTANT]
+> `docker-compose.yml` uses fail-closed variable interpolation (`${POSTGRES_PASSWORD:?Error...}`). If `POSTGRES_PASSWORD` or `LAM_JWT_SECRET_KEY` is missing, Compose refuses to start. Furthermore, Compose uses `COMPOSE_DATABASE_URL` internally to target the `postgres` container on port 5432, guaranteeing that an accidental SQLite `DATABASE_URL` in `.env` cannot contaminate the container.
+
+#### B.2 Start the Services
+```bash
+# Validate configuration and start containers
+docker compose --env-file .env.compose up -d --build
+```
+
+#### B.3 Verify Service Health & Readiness
+```bash
+# Check container status
+docker compose ps
+
+# Check liveness probe over HTTP
+curl -i http://localhost:8000/health/live
+
+# Check readiness probe (verifies database connectivity)
+curl -i http://localhost:8000/health/ready
+```
+
+#### B.4 Run Migrations & Full Test Suite (PostgreSQL 16)
+Once the PostgreSQL container is healthy:
+
+##### Option 1: Run migrations inside the running LAM container
+Inside the Docker network, database hostname `postgres` resolves to the PostgreSQL container.
+The Compose service is defined as `lam-service` with container name `lam-api`:
+
+```bash
+# Using the Compose service name:
+docker compose exec lam-service alembic upgrade head
+
+# Or using the container name directly:
+docker exec -it lam-api alembic upgrade head
+```
+
+##### Option 2: Run migrations from your host workstation
+When running Alembic from the host workstation, the container-internal hostname `postgres` is not resolvable. Migrations must target `localhost` on the published PostgreSQL port (default `5432`).
+Because `.env` defaults to local SQLite (`lam_dev.db`), you must explicitly override `DATABASE_URL` in your shell to point to the Compose PostgreSQL database:
+
+**Windows PowerShell:**
+```powershell
+$env:DATABASE_URL="postgresql+asyncpg://lam_user:your_secure_postgres_password_here@localhost:5432/lam_db"
+alembic upgrade head
+```
+
+**Linux / macOS (Bash / Zsh):**
+```bash
+DATABASE_URL="postgresql+asyncpg://lam_user:your_secure_postgres_password_here@localhost:5432/lam_db" alembic upgrade head
+```
+
+##### Full Integration Test Suite (Requires PostgreSQL 16)
+With `DATABASE_URL` pointing to localhost PostgreSQL:
+```bash
+pytest -v
+```
+
+#### B.5 Stopping the Services
+```bash
+docker compose --env-file .env.compose down
+```
+
+---
+
+## 4. Code Quality & Verification Gates
+
+Before submitting any code changes, ensure all quality gates pass:
 
 ```bash
 # 1. Code style and linter
@@ -86,61 +235,18 @@ ruff format --check .
 # 3. Strict static type checking
 mypy --strict src/lam tests
 
-# 4. Automated test suite
+# 4. Automated tests (Unit suite)
+pytest tests/unit
+
+# 5. Full automated test suite (requires PostgreSQL 16)
 pytest -v
 ```
 
 ---
 
-## 6. API Reference & Health Checks
+## 5. Host Integration Client SDK
 
-Start the service locally:
-```bash
-uvicorn lam.main:app --host 0.0.0.0 --port 8000 --reload
-```
-
-### Endpoints (Milestones M0 – M2)
-* **Health Probes:**
-  - `GET /health/live` — Liveness probe returning `{"status": "alive"}`.
-  - `GET /health/ready` — Readiness probe verifying PostgreSQL connection pool: `{"status": "ready", "database": "connected"}`.
-* **Event Ingestion:**
-  - `POST /v1/events` — Validates, deduplicates, and stores learning events. Ingests evidence, evaluates misconception hypotheses, and performs BKT state transitions for eligible events. Idempotent by `(tenant_id, event_id)`.
-* **Recommendations:**
-  - `POST /v1/recommendations` — 7-tier deterministic recommendation engine (Tier 1 Safety Stop $\rightarrow$ Tier 2 Prerequisite Remediation $\rightarrow$ Tier 3 Diagnostic Probe for confirmed misconceptions $\rightarrow$ Tier 4 Overdue Spaced Retrieval $\rightarrow$ Tier 5 Mastery Verification $\rightarrow$ Tier 6 Curriculum Progression $\rightarrow$ Tier 7 Practice Fit).
-* **Learner State & Diagnoses:**
-  - `GET /v1/learners/{learner_id}/state` — Retrieves all concept states for the authorized student.
-  - `GET /v1/learners/{learner_id}/concepts/{concept_id}/state` — Retrieves state for a single concept.
-  - `GET /v1/learners/{learner_id}/diagnoses` — Retrieves all misconception hypotheses and their confirmation/retirement status.
-  - `GET /v1/learners/{learner_id}/concepts/{concept_id}/diagnoses` — Retrieves misconception hypotheses for a specific concept.
-* **Spaced Retrieval Schedule:**
-  - `GET /v1/learners/{learner_id}/reviews` — Evaluates forgetting curves ($R(t)=\exp(-\Delta t / S)$) and returns scheduled reviews categorized by priority (`overdue`, `due_soon`, `maintained`).
-* **Curriculum Knowledge Graph:**
-  - `POST /v1/curriculum/validate` — Validates curriculum graph acyclicity (DFS 3-color) and returns topological sort order.
-  - `POST /v1/curriculum/check-prerequisites` — Evaluates student prerequisite readiness given their current concept mastery map.
-
----
-
-## 7. Containerized Deployment (Docker & Compose)
-
-Build and run using the production multi-stage `Dockerfile`:
-```bash
-# Build the container image
-docker build -t lam-service:latest .
-
-# Run container with environment configuration
-docker run -d -p 8000:8000 --env-file .env.production lam-service:latest
-```
-
-Or spin up the complete local staging stack (PostgreSQL 16 container + LAM service) using Docker Compose:
-```bash
-docker compose up --build
-```
-
----
-
-## 8. Host Integration Client SDK
-
-Host applications (e.g. Qrie backend relay) interact with LAM using `LamRelayClient` in `src/lam/infrastructure/clients/lam_client.py`:
+Host applications (such as Qrie) interact with LAM using `LamRelayClient` in `src/lam/infrastructure/clients/lam_client.py`:
 
 ```python
 from lam.infrastructure.clients.lam_client import LamClientConfig, LamRelayClient
@@ -167,4 +273,3 @@ async with LamRelayClient(config) as client:
     # 3. Replay offline outbox batch
     outbox_result = await client.replay_outbox(outbox_events)
 ```
-
