@@ -1,18 +1,18 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: lam-postgres-staging
+    container_name: lam-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: lam_user
-      POSTGRES_PASSWORD: lam_secure_staging_password_change_me
-      POSTGRES_DB: lam_staging_db
+      POSTGRES_USER: ${POSTGRES_USER:-lam_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Error: POSTGRES_PASSWORD must be configured in environment or .env.compose}
+      POSTGRES_DB: ${POSTGRES_DB:-lam_db}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_HOST_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U lam_user -d lam_staging_db"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-lam_user} -d ${POSTGRES_DB:-lam_db}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -21,26 +21,30 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: lam-api-staging
+    container_name: lam-api
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql+asyncpg://lam_user:lam_secure_staging_password_change_me@postgres:5432/lam_staging_db
-      ENVIRONMENT: production
-      LOG_LEVEL: INFO
-      LAM_JWT_SECRET_KEY: staging_super_secret_jwt_key_at_least_32_characters_long!
-      LAM_JWT_ALGORITHM: HS256
-      LAM_JWT_ISSUER: lam-auth
-      LAM_JWT_AUDIENCE: lam-service
+      # In Docker Compose, the service connects to the postgres container on port 5432.
+      # COMPOSE_DATABASE_URL may be set if the password requires URL percent-encoding.
+      # Local SQLite DATABASE_URL from .env will NOT override this container connection.
+      DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql+asyncpg://${POSTGRES_USER:-lam_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-lam_db}}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LAM_JWT_SECRET_KEY: ${LAM_JWT_SECRET_KEY:?Error: LAM_JWT_SECRET_KEY must be configured in environment or .env.compose}
+      LAM_JWT_ALGORITHM: ${LAM_JWT_ALGORITHM:-HS256}
+      LAM_JWT_ISSUER: ${LAM_JWT_ISSUER:-lam-auth}
+      LAM_JWT_AUDIENCE: ${LAM_JWT_AUDIENCE:-lam-service}
     ports:
-      - "8000:8000"
+      - "${HOST_PORT:-8000}:8000"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health/live"]
+      test: ["CMD", "python3", "-c", "import urllib.request, sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health/live').getcode() == 200 else 1)"]
       interval: 10s
       timeout: 5s
       retries: 3
+      start_period: 5s
 
 volumes:
   postgres_data:
