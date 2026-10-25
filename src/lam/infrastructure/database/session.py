@@ -14,9 +14,27 @@ from sqlalchemy.ext.asyncio import (
 
 from lam.infrastructure.config import settings
 
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    settings.database_url,
+
+def normalize_database_url(url: str) -> str:
+    """Normalizes connection strings for asyncpg compatibility across cloud providers."""
+    if not url:
+        return url
+    if url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql+asyncpg://", 1)
+    elif url.startswith("postgresql://") and "+asyncpg" not in url:
+        url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    if "sslmode=true" in url:
+        url = url.replace("sslmode=true", "ssl=require")
+    elif "sslmode=false" in url:
+        url = url.replace("sslmode=false", "sslmode=disable")
+    return url
+
+
+DATABASE_URL = normalize_database_url(
+    os.getenv(
+        "DATABASE_URL",
+        settings.database_url,
+    )
 )
 
 
