@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from lam.infrastructure.database.session import get_db_session
+from lam.infrastructure.database.session import get_db_session, normalize_database_url
 from lam.main import app
 from tests.integration.conftest import scoped_pg_client
 from tests.integration.db_guard import DatabaseSafetyError, validate_test_connection_string
@@ -155,3 +155,56 @@ async def test_pg_client_preserves_overrides_on_test_exception() -> None:
 
     # Cleanup
     app.dependency_overrides.pop(dummy_dep, None)
+
+
+def test_normalize_database_url_conversions() -> None:
+    """Verifies normalize_database_url adapts schemes and ssl parameters for asyncpg."""
+    assert normalize_database_url("") == ""
+    assert normalize_database_url(None) is None
+
+    # SQLite unchanged
+    assert (
+        normalize_database_url("sqlite+aiosqlite:///./test.db") == "sqlite+aiosqlite:///./test.db"
+    )
+
+    # Scheme adaptation
+    assert (
+        normalize_database_url("postgres://user:pass@host:5432/db")
+        == "postgresql+asyncpg://user:pass@host:5432/db"
+    )
+    assert (
+        normalize_database_url("postgresql://user:pass@host:5432/db")
+        == "postgresql+asyncpg://user:pass@host:5432/db"
+    )
+    assert (
+        normalize_database_url("postgresql+asyncpg://user:pass@host:5432/db")
+        == "postgresql+asyncpg://user:pass@host:5432/db"
+    )
+
+    # sslmode parameter conversion to asyncpg ssl
+    assert (
+        normalize_database_url("postgresql://user:pass@host:5432/db?sslmode=require")
+        == "postgresql+asyncpg://user:pass@host:5432/db?ssl=require"
+    )
+    assert (
+        normalize_database_url("postgresql://user:pass@host:5432/db?sslmode=disable")
+        == "postgresql+asyncpg://user:pass@host:5432/db?ssl=disable"
+    )
+    assert (
+        normalize_database_url("postgresql://user:pass@host:5432/db?sslmode=true")
+        == "postgresql+asyncpg://user:pass@host:5432/db?ssl=require"
+    )
+    assert (
+        normalize_database_url("postgresql://user:pass@host:5432/db?sslmode=false")
+        == "postgresql+asyncpg://user:pass@host:5432/db?ssl=disable"
+    )
+    assert (
+        normalize_database_url("postgresql://user:pass@host:5432/db?sslmode=allow")
+        == "postgresql+asyncpg://user:pass@host:5432/db?ssl=prefer"
+    )
+    assert (
+        normalize_database_url(
+            "postgresql://user:pass@host:5432/db?sslmode=require&target_session_attrs=read-write"
+        )
+        == "postgresql+asyncpg://user:pass@host:5432/db?ssl=require&target_session_attrs=read-write"
+    )

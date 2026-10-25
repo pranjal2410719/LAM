@@ -1,6 +1,7 @@
 """Async database session management."""
 
 import os
+import re
 from collections.abc import AsyncGenerator
 from typing import Any
 
@@ -23,10 +24,12 @@ def normalize_database_url(url: str) -> str:
         url = url.replace("postgres://", "postgresql+asyncpg://", 1)
     elif url.startswith("postgresql://") and "+asyncpg" not in url:
         url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
-    if "sslmode=true" in url:
-        url = url.replace("sslmode=true", "ssl=require")
-    elif "sslmode=false" in url:
-        url = url.replace("sslmode=false", "sslmode=disable")
+
+    # asyncpg expects 'ssl' parameter instead of libpq's 'sslmode'
+    url = re.sub(r"([?&])sslmode=true(&|$)", r"\1ssl=require\2", url)
+    url = re.sub(r"([?&])sslmode=false(&|$)", r"\1ssl=disable\2", url)
+    url = re.sub(r"([?&])sslmode=allow(&|$)", r"\1ssl=prefer\2", url)
+    url = re.sub(r"([?&])sslmode=([a-zA-Z0-9_-]+)(&|$)", r"\1ssl=\2\3", url)
     return url
 
 
