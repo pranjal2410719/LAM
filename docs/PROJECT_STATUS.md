@@ -1,3 +1,13 @@
+## Latest Render deployment update — 2026-10-25 23:51 IST
+
+**Owner-provided evidence:** Render shows deployment `82c5032`, commit message `fix(db): support all sslmode variants in normalize_database_url for asyncpg`, status **Deploy succeeded | Live**. Logs show Alembic upgrades completed in order: ` -> 6ed18e85f377` (`create_initial_event_ledger_and_state_tables`), `6ed18e85f377 -> 435e371938d3` (`add_bkt_parameter_version_to_learner_states`), and `435e371938d3 -> a78f20436d91` (`add_misconception_persistence_tables`). Uvicorn then started and Render reported the service live.
+
+**Updated verdict:** the migration blocker appears resolved according to the supplied logs, but **STAGING VALIDATION REMAINS INCOMPLETE** until post-deploy live checks confirm authenticated database-backed requests, event ingestion, duplicate replay/idempotency, learner-state persistence, recommendations, reviews, and tenant/object authorization.
+
+**Evidence provenance:** user-provided Render dashboard/log excerpt; this documentation update did not independently call the service. The short deployment SHA `82c5032` and full release identity should be confirmed against Render metadata if needed.
+
+---
+
 # LAM Project Status
 
 ## Live staging verification update — 2026-10-25
