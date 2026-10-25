@@ -1,6 +1,7 @@
 """Async database session management."""
 
 import os
+import re
 from collections.abc import AsyncGenerator
 from typing import Any
 
@@ -14,9 +15,29 @@ from sqlalchemy.ext.asyncio import (
 
 from lam.infrastructure.config import settings
 
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    settings.database_url,
+
+def normalize_database_url(url: str) -> str:
+    """Normalizes connection strings for asyncpg compatibility across cloud providers."""
+    if not url:
+        return url
+    if url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql+asyncpg://", 1)
+    elif url.startswith("postgresql://") and "+asyncpg" not in url:
+        url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+
+    # asyncpg expects 'ssl' parameter instead of libpq's 'sslmode'
+    url = re.sub(r"([?&])sslmode=true(&|$)", r"\1ssl=require\2", url)
+    url = re.sub(r"([?&])sslmode=false(&|$)", r"\1ssl=disable\2", url)
+    url = re.sub(r"([?&])sslmode=allow(&|$)", r"\1ssl=prefer\2", url)
+    url = re.sub(r"([?&])sslmode=([a-zA-Z0-9_-]+)(&|$)", r"\1ssl=\2\3", url)
+    return url
+
+
+DATABASE_URL = normalize_database_url(
+    os.getenv(
+        "DATABASE_URL",
+        settings.database_url,
+    )
 )
 
 

@@ -18,11 +18,12 @@ if config.config_file_name is not None:
 
 from lam.infrastructure.config import settings
 from lam.infrastructure.database.models import Base
+from lam.infrastructure.database.session import normalize_database_url
 import os
 
 target_metadata = Base.metadata
 
-database_url = os.getenv("DATABASE_URL", settings.database_url)
+database_url = normalize_database_url(os.getenv("DATABASE_URL", settings.database_url))
 if database_url:
     config.set_main_option("sqlalchemy.url", database_url)
 

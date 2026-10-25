@@ -44,7 +44,7 @@ def create_access_token(
         "sub": client_id,
         "tid": tenant_id,
         "tenant_id": tenant_id,
-        "roles": roles or ["service"],
+        "roles": roles if roles is not None else ["service"],
         "iat": int(now.timestamp()),
         "exp": int(exp.timestamp()),
         "iss": issuer or settings.jwt_issuer,
@@ -78,6 +78,7 @@ def decode_and_verify_token(
                 "verify_exp": True,
                 "verify_iss": True,
                 "verify_aud": True,
+                "require": ["exp", "iss", "aud"],
             },
         )
         if not isinstance(payload, dict):

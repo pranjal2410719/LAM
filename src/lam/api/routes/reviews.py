@@ -10,6 +10,7 @@ from lam.api.schemas.reviews import (
 from lam.domain.retrieval.scheduler import SpacedRetrievalScheduler
 from lam.infrastructure.authentication.middleware import (
     SecurityContext,
+    authorize_access,
     get_security_context,
 )
 from lam.infrastructure.database.session import get_db_session
@@ -38,6 +39,7 @@ async def get_learner_reviews(
     session: AsyncSession = Depends(get_db_session),
 ) -> ReviewsDueResponse:
     """Retrieves scheduled and overdue spaced retrieval reviews for an authorized learner."""
+    authorize_access(sec, resource="reviews", target_learner_id=learner_id)
     repo = StateRepository(session)
     states = await repo.get_all_student_states(
         tenant_id=sec.tenant_id,

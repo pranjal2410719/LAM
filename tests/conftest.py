@@ -1,6 +1,7 @@
 """Pytest configuration and test fixtures."""
 
 from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
@@ -57,15 +58,36 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
         yield session
 
 
-@pytest_asyncio.fixture
-async def async_client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
-    async def override_get_db_session() -> AsyncGenerator[AsyncSession, None]:
-        yield db_session
+@asynccontextmanager
+async def scoped_async_client(
+    session: AsyncSession,
+) -> AsyncGenerator[AsyncClient, None]:
+    """Async context manager managing FastAPI dependency overrides for test SQLite sessions.
 
+    Preserves and restores any pre-existing get_db_session dependency override
+    without clearing unrelated overrides.
+    """
+
+    async def override_get_db_session() -> AsyncGenerator[AsyncSession, None]:
+        yield session
+
+    had_override = get_db_session in app.dependency_overrides
+    prev_override = app.dependency_overrides.get(get_db_session)
     app.dependency_overrides[get_db_session] = override_get_db_session
 
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        yield client
+    try:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            yield client
+    finally:
+        if had_override:
+            app.dependency_overrides[get_db_session] = prev_override  # type: ignore[assignment]
+        else:
+            app.dependency_overrides.pop(get_db_session, None)
 
-    app.dependency_overrides.clear()
+
+@pytest_asyncio.fixture
+async def async_client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
+    """FastAPI async client configured to use the isolated SQLite test session."""
+    async with scoped_async_client(db_session) as client:
+        yield client
