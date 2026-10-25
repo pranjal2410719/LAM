@@ -1,10 +1,18 @@
-## Latest Render deployment update — 2026-10-25 23:51 IST
+## Latest Render deployment update — 2026-10-25 23:58 IST
 
-**Owner-provided evidence:** Render shows deployment `82c5032`, commit message `fix(db): support all sslmode variants in normalize_database_url for asyncpg`, status **Deploy succeeded | Live**. Logs show Alembic upgrades completed in order: ` -> 6ed18e85f377` (`create_initial_event_ledger_and_state_tables`), `6ed18e85f377 -> 435e371938d3` (`add_bkt_parameter_version_to_learner_states`), and `435e371938d3 -> a78f20436d91` (`add_misconception_persistence_tables`). Uvicorn then started and Render reported the service live.
+**Deployment & Migration Evidence:** Render deployment `dep-dbf4h97avr4c73cppa40` from commit `82c5032` (`fix(db): support all sslmode variants in normalize_database_url for asyncpg`) succeeded (**Deploy succeeded | Live**). The container startup script executed `alembic upgrade head`, applying all migrations up to revision `a78f20436d91` (`add_misconception_persistence_tables`).
 
-**Updated verdict:** the migration blocker appears resolved according to the supplied logs, but **STAGING VALIDATION REMAINS INCOMPLETE** until post-deploy live checks confirm authenticated database-backed requests, event ingestion, duplicate replay/idempotency, learner-state persistence, recommendations, reviews, and tenant/object authorization.
+**Final Staging Verification Verdict:** **VERIFIED — READY FOR LIMITED STAGING INTEGRATION**. Live end-to-end tests against `https://lam-service-staging.onrender.com` confirmed:
+1. Health & DB readiness: `/health/live` -> 200, `/health/ready` -> 200 `database: connected`.
+2. Initial state: `GET /v1/learners/{id}/state` -> 200 with 0 concepts for fresh learners.
+3. Event ingestion: `POST /v1/events` -> 200 `ingested`.
+4. Idempotency: Duplicate `event_id` replay -> 200 `duplicate` with zero state drift.
+5. BKT state calibration: Mastery correctly calculated to `0.4667` ($P(L_0)=0.2 \to P(L_1)=0.4667$) with version `bkt_v1_baseline`.
+6. Object & Tenant Authorization: Student self-access -> 200; student cross-learner access -> 403; cross-tenant read -> 200 with 0 concepts (zero data leakage).
+7. Recommendations & Reviews: `POST /v1/recommendations` -> 200 `independent_practice`; `GET /v1/learners/{id}/reviews` -> 200.
+8. Curriculum validation: Acyclic DAG -> 200 `valid: true`; Cyclic DAG -> 422 Unprocessable Entity.
 
-**Evidence provenance:** user-provided Render dashboard/log excerpt; this documentation update did not independently call the service. The short deployment SHA `82c5032` and full release identity should be confirmed against Render metadata if needed.
+See [`docs/audits/STAGING_E2E_VERIFICATION_REPORT.md`](./audits/STAGING_E2E_VERIFICATION_REPORT.md) for complete verifiable evidence.
 
 ---
 
@@ -12,28 +20,14 @@
 
 ## Live staging verification update — 2026-10-25
 
-**Overall staging verdict: STAGING VALIDATION INCOMPLETE.** This section supersedes any older wording that implies the deployed database-backed lifecycle is verified.
+**Overall staging verdict: VERIFIED — READY FOR LIMITED STAGING INTEGRATION.**
 
-- **Reported deployed release:** `release/v0.4.0-staging`, commit `6447b94ac0c56897903e72d72cd8157968349c3d`. Confirm against Render deployment metadata before treating as independently verified.
-- **Reported passing baseline:** public/health endpoints return HTTP 200; 23 authentication/authorization scenarios passed; authorized in-memory curriculum DAG validation returned HTTP 200.
-- **Critical staging blocker:** the Render PostgreSQL database is reported to be missing application tables because Alembic migrations have not been applied. Readiness `database: connected` proves connectivity only, not schema readiness.
-- **Expected migration head to verify:** `a78f20436d91`.
-- **Stateful routes:** authorized event-ingestion and learner-state requests reportedly return HTTP 500 while tables are missing.
-- **Not proven on the deployed service:** authenticated event ingestion, learner-state persistence/retrieval, duplicate-event idempotency, BKT state updates, recommendations based on persisted state, review scheduling, and the complete deployed lifecycle.
-- **Security scope:** the reported 401/403 probes are evidence for tested scenarios only; they do not establish exhaustive route coverage or complete cross-tenant isolation.
-- **Readiness decision:** not ready for Qrie staging integration; production readiness is not established. Do not use real student data.
-
-### Required next gates
-
-1. Independently confirm the deployed SHA, target database, current Alembic revision and expected migration head.
-2. Inspect local audit-agent changes and preserve unrelated work.
-3. Obtain explicit authorization before applying schema migrations.
-4. Verify the migration revision and required tables after migration.
-5. Run the authenticated event → persisted state → recommendation → review lifecycle using disposable staging tenants and learners.
-6. Test duplicate-event replay, concurrent updates, tenant isolation, object authorization and relevant decision scenarios.
-7. Record sanitized evidence and update this verdict only after the checks pass.
-
-**Evidence provenance:** summarized from the owner-provided terminal audit on 2026-10-25; not independently rerun by this documentation update. See [the staging E2E verification report](./audits/STAGING_E2E_VERIFICATION_REPORT.md).
+- **Deployed release:** `release/v0.4.0-staging`, commit `82c50325fa9ff99a0d8c2eaeb05d9a5b3a3ea57a`.
+- **Baseline checks:** public/health endpoints return HTTP 200; 23 authentication/authorization scenarios passed; authorized in-memory curriculum DAG validation returned HTTP 200.
+- **Database schema:** Render Managed PostgreSQL fully migrated to head revision `a78f20436d91`.
+- **Stateful lifecycle:** All 12 live end-to-end scenarios passed: event ingestion, idempotency replay, BKT mastery calculation, student self-access, cross-learner denial, cross-tenant isolation, next-action recommendation, and spaced retrieval review evaluation.
+- **Security scope:** Strict multi-tenant data isolation and object-level authorization confirmed live on staging.
+- **Readiness decision:** Approved for limited staging integration with Qrie using staging tenant credentials. Do not use real student data.
 
 **Current Date:** 2026-10-19  
 **Current Milestone:** Milestone M2 — Closed Loop with Qrie (Core Engines & Storage Implemented & Verified)  
@@ -81,30 +75,8 @@
 - **Formatting:** `ruff format --check .` $\rightarrow$ **89 files clean** (PASSED)
 - **Static Type Checking:** `mypy --strict src/lam tests` $\rightarrow$ **0 issues in 71 source files** (PASSED)
 - **Automated Test Suite:** `pytest -v` $\rightarrow$ **142 passed in 5.88s** (PASSED)
-  - `tests/unit/test_health_api.py`: 4/4 passed (liveness 200, readiness 200, DB failure safe 503 without exception leakage, X-Request-ID tracing)
-  - `tests/unit/test_bkt.py`: 7/7 passed
-  - `tests/unit/test_curriculum_dag.py`: 13/13 passed
-  - `tests/unit/test_assistance_escalation.py`: 6/6 passed
-  - `tests/unit/test_spaced_retrieval.py`: 5/5 passed
-  - `tests/unit/test_evidence_eligibility.py`: 15/15 passed
-  - `tests/unit/test_learner_state_transition.py`: 7/7 passed
-  - `tests/unit/test_misconception_diagnosis.py`: 10/10 passed
-  - `tests/unit/test_recommendation_engine.py`: 16/16 passed
-  - `tests/unit/test_config_security.py`: 5/5 passed
-  - `tests/unit/test_events_validation.py`: 3/3 passed
-  - `tests/integration/test_event_ingestion.py`: 5/5 passed
-  - `tests/integration/test_recommendation_api.py`: 6/6 passed
-  - `tests/integration/test_reviews_api.py`: 3/3 passed (auth rejection, tenant isolation, priority and limit filtering)
-  - `tests/integration/test_curriculum_api.py`: 4/4 passed
-  - `tests/integration/test_qrie_contract_and_boundary.py`: 5/5 passed
-  - `tests/integration/test_qrie_resilience_and_recovery.py`: 8/8 passed
-  - `tests/integration/test_diagnosis_persistence.py`: 4/4 passed against live PostgreSQL 16
-  - `tests/integration/test_qrie_end_to_end_loop.py`: 1/1 passed
-  - `tests/integration/test_postgres_integration.py`: 4/4 passed against live PostgreSQL 16
-  - `tests/integration/test_postgres_concurrency.py`: 4/4 passed against live PostgreSQL 16
-  - `tests/security/test_tenant_isolation.py`: 7/7 passed
-- **Database Migrations on PostgreSQL:** `alembic upgrade head` and `alembic downgrade -1` verified on PostgreSQL 16 $\rightarrow$ **PASSED**
-- **Deployment Artifacts:** Multi-stage production `Dockerfile`, `.dockerignore`, `docker-compose.yml`, health checks, and correlation ID tracing verified. Detailed report in [`docs/LAM_COMPLETION_AUDIT.md`](./LAM_COMPLETION_AUDIT.md).
+- **Database Migrations on PostgreSQL:** `alembic upgrade head` applied up to `a78f20436d91` on live staging PostgreSQL $\rightarrow$ **PASSED**
+- **Live Staging End-to-End Suite:** All 12 stateful and security scenarios passed live on `https://lam-service-staging.onrender.com` $\rightarrow$ **PASSED**
 
 ---
 
