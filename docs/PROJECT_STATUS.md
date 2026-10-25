@@ -1,5 +1,30 @@
 # LAM Project Status
 
+## Live staging verification update — 2026-10-25
+
+**Overall staging verdict: STAGING VALIDATION INCOMPLETE.** This section supersedes any older wording that implies the deployed database-backed lifecycle is verified.
+
+- **Reported deployed release:** `release/v0.4.0-staging`, commit `6447b94ac0c56897903e72d72cd8157968349c3d`. Confirm against Render deployment metadata before treating as independently verified.
+- **Reported passing baseline:** public/health endpoints return HTTP 200; 23 authentication/authorization scenarios passed; authorized in-memory curriculum DAG validation returned HTTP 200.
+- **Critical staging blocker:** the Render PostgreSQL database is reported to be missing application tables because Alembic migrations have not been applied. Readiness `database: connected` proves connectivity only, not schema readiness.
+- **Expected migration head to verify:** `a78f20436d91`.
+- **Stateful routes:** authorized event-ingestion and learner-state requests reportedly return HTTP 500 while tables are missing.
+- **Not proven on the deployed service:** authenticated event ingestion, learner-state persistence/retrieval, duplicate-event idempotency, BKT state updates, recommendations based on persisted state, review scheduling, and the complete deployed lifecycle.
+- **Security scope:** the reported 401/403 probes are evidence for tested scenarios only; they do not establish exhaustive route coverage or complete cross-tenant isolation.
+- **Readiness decision:** not ready for Qrie staging integration; production readiness is not established. Do not use real student data.
+
+### Required next gates
+
+1. Independently confirm the deployed SHA, target database, current Alembic revision and expected migration head.
+2. Inspect local audit-agent changes and preserve unrelated work.
+3. Obtain explicit authorization before applying schema migrations.
+4. Verify the migration revision and required tables after migration.
+5. Run the authenticated event → persisted state → recommendation → review lifecycle using disposable staging tenants and learners.
+6. Test duplicate-event replay, concurrent updates, tenant isolation, object authorization and relevant decision scenarios.
+7. Record sanitized evidence and update this verdict only after the checks pass.
+
+**Evidence provenance:** summarized from the owner-provided terminal audit on 2026-10-25; not independently rerun by this documentation update. See [the staging E2E verification report](./audits/STAGING_E2E_VERIFICATION_REPORT.md).
+
 **Current Date:** 2026-10-19  
 **Current Milestone:** Milestone M2 — Closed Loop with Qrie (Core Engines & Storage Implemented & Verified)  
 **Overall Status:** `VERIFIED` for M0 Foundation, M1 Deterministic Learner Model, and M2 Core Modules (M2-01 Curriculum DAG, M2-02 Assistance Escalation, M2-03 Spaced Retrieval Scheduler, Persistent Misconception Storage, and Closed-Loop Synthetic Integration)  
