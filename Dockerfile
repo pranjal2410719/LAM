@@ -29,11 +29,11 @@ RUN groupadd -g 10001 lam && \
     useradd -u 10001 -g lam -s /bin/bash -m lamuser
 
 COPY --from=builder /app/.venv /app/.venv
-COPY pyproject.toml alembic.ini ./
+COPY pyproject.toml alembic.ini start.sh ./
 COPY alembic ./alembic
 COPY src ./src
 
-RUN chown -R lamuser:lam /app
+RUN chmod +x /app/start.sh && chown -R lamuser:lam /app
 
 USER lamuser
 
@@ -42,4 +42,4 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
     CMD python3 -c "import os, urllib.request, sys; port=os.getenv('PORT', '8000'); sys.exit(0 if urllib.request.urlopen(f'http://127.0.0.1:{port}/health/live', timeout=4).getcode() == 200 else 1)"
 
-CMD ["sh", "-c", "exec uvicorn lam.main:app --host 0.0.0.0 --port \"${PORT:-8000}\" --timeout-graceful-shutdown 15"]
+CMD ["/app/start.sh"]
