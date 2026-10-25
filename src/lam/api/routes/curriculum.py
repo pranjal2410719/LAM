@@ -20,7 +20,11 @@ from lam.domain.curriculum.validator import (
     CurriculumValidationError,
     CyclicDependencyError,
 )
-from lam.infrastructure.authentication.middleware import SecurityContext, get_security_context
+from lam.infrastructure.authentication.middleware import (
+    SecurityContext,
+    authorize_access,
+    get_security_context,
+)
 
 router = APIRouter(prefix="/v1/curriculum", tags=["Curriculum DAG"])
 
@@ -61,6 +65,7 @@ async def validate_curriculum(
     request: CurriculumValidationRequest,
     sec: SecurityContext = Depends(get_security_context),
 ) -> CurriculumValidationResponse:
+    authorize_access(sec, resource="curriculum")
     graph = _build_graph(request.graph_id, request.version, request.nodes, request.edges)
     validator = CurriculumGraphValidator()
 
@@ -95,6 +100,7 @@ async def check_prerequisites(
     request: PrerequisiteCheckRequest,
     sec: SecurityContext = Depends(get_security_context),
 ) -> PrerequisiteCheckResponse:
+    authorize_access(sec, resource="curriculum")
     graph = _build_graph(request.graph_id, request.version, request.nodes, request.edges)
     validator = CurriculumGraphValidator()
 

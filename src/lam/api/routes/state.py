@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from lam.api.schemas.state import ConceptStateDTO, LearnerStateResponse
 from lam.infrastructure.authentication.middleware import (
     SecurityContext,
+    authorize_access,
     get_security_context,
 )
 from lam.infrastructure.database.session import get_db_session
@@ -21,6 +22,7 @@ async def get_learner_state(
     session: AsyncSession = Depends(get_db_session),
 ) -> LearnerStateResponse:
     """Retrieves all concept states for an authorized learner within the tenant."""
+    authorize_access(sec, resource="learner_state", target_learner_id=learner_id)
     repo = StateRepository(session)
     states = await repo.get_all_student_states(
         tenant_id=sec.tenant_id,
@@ -64,6 +66,7 @@ async def get_learner_concept_state(
     session: AsyncSession = Depends(get_db_session),
 ) -> ConceptStateDTO:
     """Retrieves the state for a single concept of an authorized learner."""
+    authorize_access(sec, resource="learner_state", target_learner_id=learner_id)
     repo = StateRepository(session)
     state = await repo.get_concept_state(
         tenant_id=sec.tenant_id,

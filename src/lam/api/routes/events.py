@@ -7,6 +7,7 @@ from lam.api.schemas.events import EventIngestRequest, EventIngestResponse
 from lam.application.services.ingestion_service import EventIngestionService
 from lam.infrastructure.authentication.middleware import (
     SecurityContext,
+    authorize_access,
     get_security_context,
 )
 from lam.infrastructure.database.session import get_db_session
@@ -23,9 +24,11 @@ async def ingest_event(
     """Ingests a structured learning interaction event into the immutable ledger.
 
     Guarantees:
+    - Service-only authorization strictly verified server-side.
     - Tenant-scoped authorization verified server-side.
     - Idempotency: duplicate submissions return duplicate status without re-applying state changes.
     - Atomic commit to ledger and learner state.
     """
+    authorize_access(sec, resource="events")
     service = EventIngestionService(session)
     return await service.ingest_event(request, sec)

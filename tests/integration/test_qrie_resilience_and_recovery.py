@@ -201,7 +201,7 @@ async def test_retry_exhaustion_triggers_safe_fallback_without_mastery_fabricati
 async def test_outbox_replay_recovers_with_zero_state_drift(
     async_client: AsyncClient,
 ) -> None:
-    """End-to-end integration test with live PostgreSQL 16:
+    """End-to-end integration test with isolated in-memory SQLite backend:
 
     Replaying an offline outbox batch ensures all events land and duplicate
     replay causes zero state drift.
@@ -249,7 +249,7 @@ async def test_outbox_replay_recovers_with_zero_state_drift(
     assert report1.conflict_count == 0
     assert report1.failed_count == 0
 
-    # Query state in PostgreSQL
+    # Query persisted learner state
     state_res1 = await async_client.get(
         f"/v1/learners/{student_id}/concepts/{concept_id}/state",
         headers=headers,

@@ -5,7 +5,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-lam_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Error: POSTGRES_PASSWORD must be configured in environment or .env.compose}
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?Error: POSTGRES_PASSWORD must be configured in environment or .env.compose}"
       POSTGRES_DB: ${POSTGRES_DB:-lam_db}
     ports:
       - "${POSTGRES_HOST_PORT:-5432}:5432"
@@ -33,7 +33,7 @@ services:
       DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql+asyncpg://${POSTGRES_USER:-lam_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-lam_db}}
       ENVIRONMENT: ${ENVIRONMENT:-development}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      LAM_JWT_SECRET_KEY: ${LAM_JWT_SECRET_KEY:?Error: LAM_JWT_SECRET_KEY must be configured in environment or .env.compose}
+      LAM_JWT_SECRET_KEY: "${LAM_JWT_SECRET_KEY:?Error: LAM_JWT_SECRET_KEY must be configured in environment or .env.compose}"
       LAM_JWT_ALGORITHM: ${LAM_JWT_ALGORITHM:-HS256}
       LAM_JWT_ISSUER: ${LAM_JWT_ISSUER:-lam-auth}
       LAM_JWT_AUDIENCE: ${LAM_JWT_AUDIENCE:-lam-service}

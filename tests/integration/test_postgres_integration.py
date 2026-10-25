@@ -1,79 +1,20 @@
 """Integration tests verifying behavior against a live PostgreSQL 16 database."""
 
-import os
-from collections.abc import AsyncGenerator
-
 import pytest
-import pytest_asyncio
-from httpx import ASGITransport, AsyncClient
+from httpx import AsyncClient
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import (
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
-from sqlalchemy.pool import NullPool
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from lam.infrastructure.database.session import get_db_session
-from lam.main import app
 from tests.conftest import auth_headers
-
-POSTGRES_TEST_URL = os.getenv(
-    "POSTGRES_TEST_URL",
-    "postgresql+asyncpg://lam_user:lam_password@localhost:5432/lam_test_db",
-)
-
-pg_engine = create_async_engine(POSTGRES_TEST_URL, poolclass=NullPool, echo=False)
-pg_session_factory = async_sessionmaker(
-    bind=pg_engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-    autoflush=False,
-)
-
-
-@pytest_asyncio.fixture(autouse=True)
-async def clean_postgres_db() -> AsyncGenerator[None, None]:
-    """Cleans tables before and after each test."""
-    async with pg_session_factory() as session:
-        await session.execute(text("TRUNCATE TABLE learning_events, learner_states CASCADE"))
-        await session.commit()
-    yield
-    async with pg_session_factory() as session:
-        await session.execute(text("TRUNCATE TABLE learning_events, learner_states CASCADE"))
-        await session.commit()
-
-
-@pytest_asyncio.fixture
-async def pg_session() -> AsyncGenerator[AsyncSession, None]:
-    async with pg_session_factory() as session:
-        yield session
-
-
-@pytest_asyncio.fixture
-async def pg_client() -> AsyncGenerator[AsyncClient, None]:
-    """FastAPI async client configured to use PostgreSQL session pool."""
-
-    async def override_get_db_session() -> AsyncGenerator[AsyncSession, None]:
-        async with pg_session_factory() as s:
-            yield s
-
-    app.dependency_overrides[get_db_session] = override_get_db_session
-
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        yield client
-
-    app.dependency_overrides.clear()
 
 
 @pytest.mark.asyncio
-async def test_postgres_connection_and_table_presence(pg_session: AsyncSession) -> None:
+async def test_postgres_connection_and_table_presence(clean_pg_session: AsyncSession) -> None:
     """Verifies that the live PostgreSQL instance is connected and migrations have run."""
-    res = await pg_session.execute(text("SELECT 1"))
+    res = await clean_pg_session.execute(text("SELECT 1"))
     assert res.scalar() == 1
 
-    tables = await pg_session.execute(
+    tables = await clean_pg_session.execute(
         text("SELECT table_name FROM information_schema.tables WHERE table_schema='public'")
     )
     table_names = [row[0] for row in tables.fetchall()]
