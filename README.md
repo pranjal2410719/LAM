@@ -13,7 +13,7 @@ LAM is an independent, versioned backend service that converts structured studen
 
 ## 2. Current Implementation Status
 
-* **Active Milestone:** **M2 — Closed Loop with Qrie** (`IMPLEMENTED & LOCALLY VERIFIED`; Staging Deployment `UNVERIFIED / BLOCKED` pending remote staging infrastructure provisioning; Policies D-01 through D-07 remain `PROPOSED`)
+* **Active Milestone:** **M2 — Closed Loop with Qrie** (`CORE MODULES IMPLEMENTED; STAGING VALIDATION INCOMPLETE`; reported deployment commit `6447b94ac0c56897903e72d72cd8157968349c3d` on `release/v0.4.0-staging`; Render database migrations are reported pending; Policies D-01 through D-07 remain `PROPOSED`). Treat the deployment SHA and probe results as owner-reported until confirmed against Render metadata.
 * **Implemented & Verified:**
   - **M0 Foundation:** Append-only event ledger with database-level uniqueness constraints for idempotency, cryptographic JWT authentication, PostgreSQL 16 migrations & high-concurrency race safety, non-coercion rule (`None` remains `None`).
   - **M1 Deterministic Learner Model:** Corbett & Anderson BKT engine, authoritative evidence eligibility rules, pure domain state transition engine, persistent misconception hypothesis engine with competing hypothesis evaluation and audit log, deterministic 7-tier recommendation engine.
